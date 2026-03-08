@@ -128,6 +128,15 @@ def delete_all():
 def img_to_b64(f) -> str:
     img = Image.open(f)
     img.thumbnail((500, 500))
+    # Konwertuj RGBA/P do RGB (PNG z przezroczystością nie zapisze się jako JPEG)
+    if img.mode in ("RGBA", "P", "LA"):
+        background = Image.new("RGB", img.size, (255, 255, 255))
+        if img.mode == "P":
+            img = img.convert("RGBA")
+        background.paste(img, mask=img.split()[-1] if img.mode in ("RGBA", "LA") else None)
+        img = background
+    elif img.mode != "RGB":
+        img = img.convert("RGB")
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=72)
     return base64.b64encode(buf.getvalue()).decode()
@@ -182,7 +191,7 @@ if st.session_state.tab == "lista":
 
     col_s, col_r = st.columns([4,1])
     with col_s:
-        search = st.text_input("", placeholder="🔍 Szukaj produktu...", label_visibility="collapsed")
+        search = st.text_input("Szukaj", placeholder="🔍 Szukaj produktu...", label_visibility="collapsed")
     with col_r:
         if st.button("🔄", use_container_width=True, help="Odśwież"):
             st.session_state.sales = load_sales(); st.rerun()
@@ -317,7 +326,7 @@ elif st.session_state.tab == "dodaj":
 
     # Zdjęcie
     st.markdown("**📷 Zdjęcie produktu**")
-    uploaded = st.file_uploader("", type=["jpg","jpeg","png","webp"], label_visibility="collapsed")
+    uploaded = st.file_uploader("Zdjęcie produktu", type=["jpg","jpeg","png","webp"], label_visibility="collapsed")
 
     existing_photo = ""
     if is_edit and ed.get("photo"):
