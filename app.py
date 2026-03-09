@@ -146,8 +146,16 @@ def img_to_b64(f) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 def fmt_pln(v):
-    try: return f"{float(v):.2f} zł"
+    try:
+        s = str(v).strip().replace(",",".")
+        return f"{float(s):.2f} zł"
     except: return "— zł"
+
+def safe_float(v):
+    try:
+        s = str(v).strip().replace(",",".")
+        return float(s)
+    except: return 0.0
 
 def calc_ingredients_cost(ing_list: list, skladniki_map: dict) -> float:
     total = 0.0
@@ -155,7 +163,7 @@ def calc_ingredients_cost(ing_list: list, skladniki_map: dict) -> float:
         name = ing.get("name", "")
         qpp  = float(ing.get("qty_per_product", 1))
         if name in skladniki_map:
-            unit_price = float(skladniki_map[name].get("unit_price", 0) or 0)
+            unit_price = safe_float(skladniki_map[name].get("unit_price", 0))
             total += unit_price * qpp
     return round(total, 2)
 
@@ -242,7 +250,7 @@ if st.session_state.tab == "lista":
 
             if xtype == "produkt":
                 profit     = x.get("profit", 0)
-                profit_cls = "profit-pos" if float(profit or 0) >= 0 else "profit-neg"
+                profit_cls = "profit-pos" if safe_float(profit) >= 0 else "profit-neg"
 
                 ing_list = []
                 try:
@@ -284,7 +292,7 @@ if st.session_state.tab == "lista":
                         rows_html = ""
                         for ing in ing_list:
                             s_data   = skladniki_map.get(ing.get("name",""), {})
-                            up       = float(s_data.get("unit_price", 0) or 0)
+                            up       = safe_float(s_data.get("unit_price", 0))
                             qpp      = float(ing.get("qty_per_product", 1))
                             ing_cost = round(up * qpp, 2)
                             rows_html += f"""
@@ -429,7 +437,7 @@ elif st.session_state.tab == "dodaj":
             ingredients_cost = calc_ingredients_cost(st.session_state.ing_list, skladniki_map)
             for idx, ing in enumerate(st.session_state.ing_list):
                 s_data   = skladniki_map.get(ing.get("name",""), {})
-                up       = float(s_data.get("unit_price", 0) or 0)
+                up       = safe_float(s_data.get("unit_price", 0))
                 qpp      = float(ing.get("qty_per_product", 1))
                 ing_cost = round(up * qpp, 2)
                 ic1, ic2, ic3 = st.columns([4, 2, 1])
@@ -551,12 +559,12 @@ elif st.session_state.tab == "dodaj":
 elif st.session_state.tab == "stats":
 
     def fsum(lst, key):
-        return sum(float(s.get(key, 0) or 0) for s in lst)
+        return sum(safe_float(s.get(key, 0)) for s in lst)
 
     total_cost_all = fsum(produkty, "total_cost")
     total_sale_all = fsum(produkty, "total_sale")
     total_profit   = fsum(produkty, "profit")
-    total_qty_p    = sum(int(s.get("qty",0) or 0) for s in produkty)
+    total_qty_p    = sum(int(safe_float(s.get("qty",0))) for s in produkty)
 
     c1, c2, c3 = st.columns(3)
     c1.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#2563eb">{len(produkty)}</div><div class="stat-label">🏷️ Produkty gotowe</div></div>', unsafe_allow_html=True)
@@ -578,7 +586,7 @@ elif st.session_state.tab == "stats":
 
     if produkty:
         st.markdown("#### 🏆 Top produkty wg zysku")
-        for i, s in enumerate(sorted(produkty, key=lambda x: float(x.get("profit",0) or 0), reverse=True)[:5], 1):
+        for i, s in enumerate(sorted(produkty, key=lambda x: safe_float(x.get("profit",0)), reverse=True)[:5], 1):
             p     = float(s.get("profit",0) or 0)
             color = "#16a34a" if p >= 0 else "#ef4444"
             st.markdown(f"""
