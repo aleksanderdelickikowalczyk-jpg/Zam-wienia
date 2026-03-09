@@ -17,12 +17,7 @@ html, body, [class*="css"] { font-family: 'Nunito', sans-serif !important; }
 .main .block-container { padding: 1rem 1rem 5rem; max-width: 640px; }
 #MainMenu, footer, header { visibility: hidden; }
 
-.top-header {
-    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
-    color: white; border-radius: 16px; padding: 18px 20px; margin-bottom: 20px;
-    display: flex; justify-content: space-between; align-items: center;
-    box-shadow: 0 4px 16px rgba(29,78,216,0.3);
-}
+.top-header { background: linear-gradient(135deg, #1d4ed8, #3b82f6); color: white; border-radius: 16px; padding: 18px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 16px rgba(29,78,216,0.3); }
 .top-header h1 { font-size: 21px; font-weight: 900; margin: 0; }
 .top-header .count { background: rgba(255,255,255,0.22); padding: 4px 14px; border-radius: 20px; font-size: 13px; font-weight: 800; }
 
@@ -49,11 +44,7 @@ html, body, [class*="css"] { font-family: 'Nunito', sans-serif !important; }
 .profit-val { font-size: 18px; font-weight: 900; }
 .profit-pos { color: #16a34a; } .profit-neg { color: #ef4444; }
 
-.skladnik-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 6px 0; border-bottom: 1px solid #ede9fe;
-    font-size: 13px; font-weight: 700; color: #374151;
-}
+.skladnik-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #ede9fe; font-size: 13px; font-weight: 700; color: #374151; }
 .skladnik-row:last-child { border-bottom: none; }
 
 .stat-box { background: white; border-radius: 14px; padding: 14px 10px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
@@ -65,7 +56,7 @@ html, body, [class*="css"] { font-family: 'Nunito', sans-serif !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── Google Sheets ─────────────────────────────────────────────────────────────
+# ── Google Sheets ─────────────────────────────────────────────
 HEADERS = ["id","type","product","qty","unit_price","total_cost","sale_price","total_sale","profit","created","photo","ingredients"]
 
 @st.cache_resource
@@ -86,18 +77,13 @@ def load_items():
         sheet = get_sheet()
         ensure_headers(sheet)
         records = sheet.get_all_records()
-        # upewnij się, że wszystkie wartości numeric są floatami
-        for r in records:
-            for key in NUMERIC:
-                r[key] = safe_float(r.get(key, 0))
         return list(records)
     except Exception as e:
         st.error(f"❌ Błąd połączenia: {type(e).__name__}: {e}")
         return []
 
 def safe_val(v):
-    """Upewnij się że liczby są floatami, nie stringami."""
-    if isinstance(v, float) or isinstance(v, int):
+    if isinstance(v, (float, int)):
         return v
     try:
         return float(str(v).replace(",","."))
@@ -110,7 +96,7 @@ def append_item(item: dict):
     sheet = get_sheet()
     ensure_headers(sheet)
     row = [safe_val(item.get(h,"")) if h in NUMERIC else item.get(h,"") for h in HEADERS]
-    sheet.append_row(row, value_input_option="RAW")
+    sheet.append_row(row, value_input_option="USER_ENTERED")
 
 def update_item(item: dict):
     sheet = get_sheet()
@@ -118,7 +104,7 @@ def update_item(item: dict):
     for i, r in enumerate(records, start=2):
         if str(r.get("id")) == str(item["id"]):
             row = [safe_val(item.get(h,"")) if h in NUMERIC else item.get(h,"") for h in HEADERS]
-            sheet.update(f"A{i}:{chr(64+len(HEADERS))}{i}", [row], value_input_option="RAW")
+            sheet.update(f"A{i}:{chr(64+len(HEADERS))}{i}", [row], value_input_option="USER_ENTERED")
             return
 
 def delete_item(item_id: str):
@@ -151,28 +137,15 @@ def img_to_b64(f) -> str:
 
 def fmt_pln(v):
     try:
-        if v is None:
-            return "— zł"
-        # jeśli float/int → konwertujemy bez zmian
-        if isinstance(v, (int, float)):
-            return f"{v:.2f} zł"
-        # jeśli string → zamień przecinek na kropkę
-        s = str(v).replace(",",".").strip()
+        s = str(v).strip().replace(",",".")
         return f"{float(s):.2f} zł"
-    except:
-        return "— zł"
+    except: return "— zł"
 
 def safe_float(v):
-    """Konwertuje wartość na float. Jeśli błąd lub pusta, zwraca 0.0"""
     try:
-        if v is None or v == "":
-            return 0.0
-        if isinstance(v, (int, float)):
-            return float(v)
-        s = str(v).replace(",",".").strip()
+        s = str(v).strip().replace(",",".")
         return float(s)
-    except:
-        return 0.0
+    except: return 0.0
 
 def calc_ingredients_cost(ing_list: list, skladniki_map: dict) -> float:
     total = 0.0
@@ -184,7 +157,7 @@ def calc_ingredients_cost(ing_list: list, skladniki_map: dict) -> float:
             total += unit_price * qpp
     return round(total, 2)
 
-# ── Stan ──────────────────────────────────────────────────────────────────────
+# ── Stan ──────────────────────────────────────────────────────
 for k, v in [("tab","lista"),("editing",None),("wpisy",None)]:
     if k not in st.session_state: st.session_state[k] = v
 
@@ -197,7 +170,7 @@ produkty      = [x for x in items if x.get("type","") == "produkt"]
 skladniki     = [x for x in items if x.get("type","") == "skladnik"]
 skladniki_map = {s.get("product",""): s for s in skladniki}
 
-# ── Nagłówek ──────────────────────────────────────────────────────────────────
+# ── Nagłówek ──────────────────────────────────────────────────
 st.markdown(f"""
 <div class="top-header">
     <h1>🛒 Ewidencja Sprzedaży</h1>
@@ -218,174 +191,11 @@ with c3:
 
 st.markdown("---")
 
-# ════════════════════════════════════════════════════════════════════════════
-# LISTA
-# ════════════════════════════════════════════════════════════════════════════
-if st.session_state.tab == "lista":
-
-    col_s, col_f, col_r = st.columns([3, 2, 1])
-    with col_s:
-        search = st.text_input("Szukaj", placeholder="🔍 Szukaj...", label_visibility="collapsed")
-    with col_f:
-        filtr_typ = st.selectbox("Typ", ["Wszystkie", "🏷️ Produkty gotowe", "🧩 Składniki"], label_visibility="collapsed")
-    with col_r:
-        if st.button("🔄", use_container_width=True, help="Odśwież"):
-            st.session_state.wpisy = load_items(); st.rerun()
-
-    filtered = items
-    if search:
-        filtered = [x for x in filtered if search.lower() in str(x.get("product","")).lower()]
-    if filtr_typ == "🏷️ Produkty gotowe":
-        filtered = [x for x in filtered if x.get("type") == "produkt"]
-    elif filtr_typ == "🧩 Składniki":
-        filtered = [x for x in filtered if x.get("type") == "skladnik"]
-
-    if not filtered:
-        st.markdown("""
-        <div style="text-align:center;padding:48px 20px;color:#94a3b8">
-            <div style="font-size:52px;margin-bottom:12px">📭</div>
-            <p style="font-size:16px;font-weight:700">Brak wpisów</p>
-            <small>Dodaj pierwszy wpis klikając ➕</small>
-        </div>""", unsafe_allow_html=True)
-    else:
-        for x in reversed(filtered):
-            xid   = str(x.get("id",""))
-            xtype = x.get("type","produkt")
-            photo = x.get("photo","")
-
-            if xtype == "produkt":
-                card_class = "card-produkt"
-            else:
-                card_class = "card-skladnik"
-
-            # Zdjęcie wewnątrz karty — renderujemy całą kartę razem ze zdjęciem
-            photo_html = ""
-            if photo:
-                try:
-                    photo_html = f'''<img src="data:image/jpeg;base64,{photo}" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:10px">''' 
-                except: pass
-
-            if xtype == "produkt":
-                profit     = x.get("profit", 0)
-                profit_cls = "profit-pos" if safe_float(profit) >= 0 else "profit-neg"
-
-                ing_list = []
-                try:
-                    raw = x.get("ingredients","")
-                    if raw: ing_list = json.loads(raw)
-                except: pass
-
-                st.markdown(f"""
-                <div class="card-produkt">
-                    {photo_html}
-                    <span class="type-badge badge-produkt">🏷️ Produkt gotowy</span>
-                    <div class="item-name">{x.get('product','—')}</div>
-                    <div class="item-date">📅 {x.get('created','')}</div>
-                    <div class="price-grid">
-                        <div class="price-box"><div class="pb-label">Ilość</div><div class="pb-val pb-gray">{x.get('qty','—')} szt.</div></div>
-                        <div class="price-box"><div class="pb-label">Cena jedn.</div><div class="pb-val pb-blue">{fmt_pln(x.get('unit_price'))}</div></div>
-                        <div class="price-box"><div class="pb-label">Koszt całość</div><div class="pb-val pb-orange">{fmt_pln(x.get('total_cost'))}</div></div>
-                    </div>
-                    <div class="price-grid">
-                        <div class="price-box" style="grid-column:span 2">
-                            <div class="pb-label">Cena sprzedaży (łącznie)</div>
-                            <div class="pb-val pb-green">{fmt_pln(x.get('total_sale'))}</div>
-                        </div>
-                        <div class="price-box">
-                            <div class="pb-label">Cena sprzed./szt.</div>
-                            <div class="pb-val pb-green">{fmt_pln(x.get('sale_price'))}</div>
-                        </div>
-                    </div>
-                    <div class="profit-row">
-                        <span class="profit-label">💰 Zysk</span>
-                        <span class="profit-val {profit_cls}">{fmt_pln(profit)}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Zwijana lista składników
-                if ing_list:
-                    with st.expander(f"🧩 Składniki ({len(ing_list)} pozycji) — kliknij aby rozwinąć", expanded=False):
-                        rows_html = ""
-                        for ing in ing_list:
-                            s_data   = skladniki_map.get(ing.get("name",""), {})
-                            up       = safe_float(s_data.get("unit_price", 0))
-                            qpp      = float(ing.get("qty_per_product", 1))
-                            ing_cost = round(up * qpp, 2)
-                            rows_html += f"""
-                            <div class="skladnik-row">
-                                <span>🧩 {ing.get('name','—')}</span>
-                                <span style="display:flex;gap:14px;align-items:center">
-                                    <span style="color:#64748b;font-size:12px;font-weight:700">{qpp:.1f} szt./produkt</span>
-                                    <span style="color:#7c3aed;font-weight:800">{ing_cost:.2f} zł</span>
-                                </span>
-                            </div>"""
-                        ing_total = calc_ingredients_cost(ing_list, skladniki_map)
-                        rows_html += f"""
-                        <div style="display:flex;justify-content:space-between;align-items:center;
-                                    margin-top:10px;padding-top:10px;border-top:2px solid #c4b5fd">
-                            <span style="font-size:12px;font-weight:800;color:#6d28d9">💜 Suma kosztów składników / szt.</span>
-                            <span style="font-size:16px;font-weight:900;color:#7c3aed">{ing_total:.2f} zł</span>
-                        </div>"""
-                        st.markdown(f'<div style="background:#faf5ff;border-radius:10px;padding:12px 14px">{rows_html}</div>', unsafe_allow_html=True)
-
-            else:
-                st.markdown(f"""
-                <div class="card-skladnik">
-                    {photo_html}
-                    <span class="type-badge badge-skladnik">🧩 Składnik</span>
-                    <div class="item-name">{x.get('product','—')}</div>
-                    <div class="item-date">📅 {x.get('created','')}</div>
-                    <div class="price-grid-2">
-                        <div class="price-box"><div class="pb-label">Ilość</div><div class="pb-val pb-gray">{x.get('qty','—')} szt.</div></div>
-                        <div class="price-box"><div class="pb-label">Cena jedn.</div><div class="pb-val pb-purple">{fmt_pln(x.get('unit_price'))}</div></div>
-                    </div>
-                    <div style="margin-top:-4px">
-                        <div class="price-box" style="text-align:left;padding:10px 12px">
-                            <div class="pb-label">Koszt całość</div>
-                            <div class="pb-val pb-orange">{fmt_pln(x.get('total_cost'))}</div>
-                        </div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            ca, cb = st.columns(2)
-            with ca:
-                if st.button("✏️ Edytuj", key=f"e_{xid}", use_container_width=True):
-                    st.session_state.editing = x
-                    st.session_state.tab = "dodaj"
-                    st.rerun()
-            with cb:
-                if st.button("🗑️ Usuń", key=f"d_{xid}", use_container_width=True):
-                    with st.spinner("Usuwanie..."):
-                        delete_item(xid)
-                        st.session_state.wpisy = load_items()
-                    st.rerun()
-            st.markdown("<hr style='margin:8px 0 16px;border-color:#f1f5f9'>", unsafe_allow_html=True)
-
-# ════════════════════════════════════════════════════════════════════════════
-# DODAJ / EDYTUJ
-# ════════════════════════════════════════════════════════════════════════════
-elif st.session_state.tab == "dodaj":
-    ed      = st.session_state.editing
-    is_edit = ed is not None
-
-    st.markdown(f"### {'✏️ Edytuj wpis' if is_edit else '➕ Nowy wpis'}")
-
-    type_options  = ["🏷️ Produkt gotowy", "🧩 Składnik"]
-    default_type  = 1 if (is_edit and ed.get("type") == "skladnik") else 0
-    selected_type = st.selectbox("Typ wpisu *", type_options, index=default_type)
-    is_skladnik   = selected_type == "🧩 Składnik"
-    xtype         = "skladnik" if is_skladnik else "produkt"
-
-    product = st.text_input("Nazwa *",
-        value=ed.get("product","") if is_edit else "",
-        placeholder="np. Koszulka bawełniana" if not is_skladnik else "np. Bawełna 100g")
-
-   def parse_price(s):
+# ── Funkcja parsowania cen ──────────────────────────────
+def parse_price(s):
     """
     Zamienia input użytkownika na float.
-    Obsługuje: 6,92 ; 6.92 ; 692 → 6.92
+    Obsługuje: 6,92 ; 6.92 ; "6,92" ; "6.92"
     """
     try:
         if isinstance(s, (int, float)):
@@ -393,8 +203,7 @@ elif st.session_state.tab == "dodaj":
         s = str(s).strip()
         if not s:
             return 0.0
-        # Zamień przecinek na kropkę
-        s = s.replace(",",".")
+        s = s.replace(",", ".")
         return float(s)
     except:
         return 0.0
