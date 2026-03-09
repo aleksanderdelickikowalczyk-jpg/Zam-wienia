@@ -106,7 +106,7 @@ def append_item(item: dict):
     sheet = get_sheet()
     ensure_headers(sheet)
     row = [safe_val(item.get(h,"")) if h in NUMERIC else item.get(h,"") for h in HEADERS]
-    sheet.append_row(row, value_input_option="USER_ENTERED")
+    sheet.append_row(row, value_input_option="RAW")
 
 def update_item(item: dict):
     sheet = get_sheet()
@@ -114,7 +114,7 @@ def update_item(item: dict):
     for i, r in enumerate(records, start=2):
         if str(r.get("id")) == str(item["id"]):
             row = [safe_val(item.get(h,"")) if h in NUMERIC else item.get(h,"") for h in HEADERS]
-            sheet.update(f"A{i}:{chr(64+len(HEADERS))}{i}", [row], value_input_option="USER_ENTERED")
+            sheet.update(f"A{i}:{chr(64+len(HEADERS))}{i}", [row], value_input_option="RAW")
             return
 
 def delete_item(item_id: str):
@@ -153,9 +153,21 @@ def fmt_pln(v):
 
 def safe_float(v):
     try:
-        s = str(v).strip().replace(",",".")
+        if v is None:
+            return 0.0
+
+        # jeśli już liczba – zwróć
+        if isinstance(v, (int, float)):
+            return float(v)
+
+        s = str(v).strip()
+
+        # polski zapis liczby
+        s = s.replace(",", ".")
+
         return float(s)
-    except: return 0.0
+    except:
+        return 0.0
 
 def calc_ingredients_cost(ing_list: list, skladniki_map: dict) -> float:
     total = 0.0
@@ -367,20 +379,14 @@ elif st.session_state.tab == "dodaj":
 
     def parse_price(s):
         try:
+            if s is None:
+                return 0.0
+    
             s = str(s).strip()
-            # Usuń wszystkie spacje i znaki niewidoczne
-            s = ''.join(c for c in s if not c.isspace())
-            # Obsłuż format "1 234,56" lub "1.234,56" (spacja/kropka jako separator tysięcy)
-            # Jeśli jest i kropka i przecinek, ten ostatni to separator dziesiętny
-            if ',' in s and '.' in s:
-                # usuń separator tysięcy (ten który jest pierwszy)
-                if s.index('.') < s.index(','):
-                    s = s.replace('.', '')   # kropka = tysiące
-                    s = s.replace(',', '.')
-                else:
-                    s = s.replace(',', '')   # przecinek = tysiące
-            elif ',' in s:
-                s = s.replace(',', '.')
+    
+            # polski zapis liczby
+            s = s.replace(",", ".")
+    
             return round(float(s), 2)
         except:
             return 0.0
