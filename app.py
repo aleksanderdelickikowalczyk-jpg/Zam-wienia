@@ -334,14 +334,19 @@ elif st.session_state.tab == "dodaj":
         value=ed.get("product","") if is_edit else "",
         placeholder="np. Koszulka bawełniana" if not is_skladnik else "np. Bawełna 100g")
 
+    def parse_price(s):
+        try: return round(float(str(s).replace(",",".")), 2)
+        except: return 0.0
+
     col1, col2 = st.columns(2)
     with col1:
         qty = st.number_input("Ilość sztuk *", min_value=1, step=1,
             value=int(ed.get("qty",1)) if is_edit else 1)
     with col2:
-        unit_price = st.number_input("Cena jednostkowa (zł) *", min_value=0.0, step=0.01, format="%.2f",
-            value=float(ed.get("unit_price",0)) if is_edit else 0.0,
-            help="Cena zakupu jednej sztuki")
+        unit_price_str = st.text_input("Cena jednostkowa (zł) *",
+            value=str(ed.get("unit_price","0")).replace(".",",") if is_edit else "0",
+            placeholder="np. 6,92")
+        unit_price = parse_price(unit_price_str)
 
     # ── Lista składników (tylko produkt gotowy) ───────────────────────────────
     ingredients_json = "[]"
@@ -430,8 +435,10 @@ elif st.session_state.tab == "dodaj":
     total_sale = 0.0
     profit     = 0.0
     if not is_skladnik:
-        sale_price = st.number_input("Cena sprzedaży za sztukę (zł) *", min_value=0.0, step=0.01, format="%.2f",
-            value=float(ed.get("sale_price",0)) if is_edit else 0.0)
+        sale_price_str = st.text_input("Cena sprzedaży za sztukę (zł) *",
+            value=str(ed.get("sale_price","0")).replace(".",",") if is_edit else "0",
+            placeholder="np. 19,99")
+        sale_price = parse_price(sale_price_str)
         total_sale = round(qty * sale_price, 2)
         profit     = round(total_sale - total_cost, 2)
         profit_color_style = "#16a34a" if profit >= 0 else "#ef4444"
