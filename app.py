@@ -85,9 +85,10 @@ def load_items():
     try:
         sheet = get_sheet()
         ensure_headers(sheet)
-        return list(sheet.get_all_records())
+        records = sheet.get_all_records()
+        return list(records)
     except Exception as e:
-        st.error(f"❌ Błąd połączenia: {e}")
+        st.error(f"❌ Błąd połączenia: {type(e).__name__}: {e}")
         return []
 
 def append_item(item: dict):
@@ -146,12 +147,13 @@ def calc_ingredients_cost(ing_list: list, skladniki_map: dict) -> float:
     return round(total, 2)
 
 # ── Stan ──────────────────────────────────────────────────────────────────────
-for k, v in [("tab","lista"),("editing",None),("items",None)]:
+for k, v in [("tab","lista"),("editing",None),("wpisy",None)]:
     if k not in st.session_state: st.session_state[k] = v
 
-if st.session_state.items is None:
-    st.session_state.items = load_items()
-items = st.session_state.items if st.session_state.items is not None else []
+if st.session_state.wpisy is None:
+    loaded = load_items()
+    st.session_state.wpisy = loaded if isinstance(loaded, list) else []
+items = st.session_state.wpisy if isinstance(st.session_state.wpisy, list) else []
 
 produkty      = [x for x in items if x.get("type","") == "produkt"]
 skladniki     = [x for x in items if x.get("type","") == "skladnik"]
@@ -190,7 +192,7 @@ if st.session_state.tab == "lista":
         filtr_typ = st.selectbox("Typ", ["Wszystkie", "🏷️ Produkty gotowe", "🧩 Składniki"], label_visibility="collapsed")
     with col_r:
         if st.button("🔄", use_container_width=True, help="Odśwież"):
-            st.session_state.items = load_items(); st.rerun()
+            st.session_state.wpisy = load_items(); st.rerun()
 
     filtered = items
     if search:
@@ -309,7 +311,7 @@ if st.session_state.tab == "lista":
                 if st.button("🗑️ Usuń", key=f"d_{xid}", use_container_width=True):
                     with st.spinner("Usuwanie..."):
                         delete_item(xid)
-                        st.session_state.items = load_items()
+                        st.session_state.wpisy = load_items()
                     st.rerun()
             st.markdown("<hr style='margin:8px 0 16px;border-color:#f1f5f9'>", unsafe_allow_html=True)
 
@@ -490,7 +492,7 @@ elif st.session_state.tab == "dodaj":
             with st.spinner("Zapisywanie..."):
                 if is_edit: update_item(item)
                 else:       append_item(item)
-                st.session_state.items = load_items()
+                st.session_state.wpisy = load_items()
             st.success("✅ Zapisano!")
             st.session_state.editing = None
             st.session_state.tab = "lista"
@@ -546,7 +548,7 @@ elif st.session_state.tab == "stats":
         if st.session_state.get("confirm_del_all"):
             with st.spinner("Usuwanie..."):
                 delete_all()
-                st.session_state.items = load_items()
+                st.session_state.wpisy = load_items()
                 st.session_state.confirm_del_all = False
             st.success("Usunięto!")
             st.rerun()
