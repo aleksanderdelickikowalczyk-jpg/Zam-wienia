@@ -151,7 +151,7 @@ for k, v in [("tab","lista"),("editing",None),("items",None)]:
 
 if st.session_state.items is None:
     st.session_state.items = load_items()
-items = st.session_state.items
+items = st.session_state.items if st.session_state.items is not None else []
 
 produkty      = [x for x in items if x.get("type","") == "produkt"]
 skladniki     = [x for x in items if x.get("type","") == "skladnik"]
