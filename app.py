@@ -91,17 +91,30 @@ def load_items():
         st.error(f"❌ Błąd połączenia: {type(e).__name__}: {e}")
         return []
 
+def safe_val(v):
+    """Upewnij się że liczby są floatami, nie stringami."""
+    if isinstance(v, float) or isinstance(v, int):
+        return v
+    try:
+        return float(str(v).replace(",","."))
+    except:
+        return v
+
+NUMERIC = {"qty","unit_price","total_cost","sale_price","total_sale","profit"}
+
 def append_item(item: dict):
     sheet = get_sheet()
     ensure_headers(sheet)
-    sheet.append_row([item.get(h, "") for h in HEADERS])
+    row = [safe_val(item.get(h,"")) if h in NUMERIC else item.get(h,"") for h in HEADERS]
+    sheet.append_row(row, value_input_option="USER_ENTERED")
 
 def update_item(item: dict):
     sheet = get_sheet()
     records = list(sheet.get_all_records())
     for i, r in enumerate(records, start=2):
         if str(r.get("id")) == str(item["id"]):
-            sheet.update(f"A{i}:{chr(64+len(HEADERS))}{i}", [[item.get(h,"") for h in HEADERS]])
+            row = [safe_val(item.get(h,"")) if h in NUMERIC else item.get(h,"") for h in HEADERS]
+            sheet.update(f"A{i}:{chr(64+len(HEADERS))}{i}", [row], value_input_option="USER_ENTERED")
             return
 
 def delete_item(item_id: str):
@@ -215,8 +228,16 @@ if st.session_state.tab == "lista":
             xtype = x.get("type","produkt")
             photo = x.get("photo","")
 
+            if xtype == "produkt":
+                card_class = "card-produkt"
+            else:
+                card_class = "card-skladnik"
+
+            # Zdjęcie wewnątrz karty — renderujemy całą kartę razem ze zdjęciem
+            photo_html = ""
             if photo:
-                try: st.image(base64.b64decode(photo), use_container_width=True, output_format="JPEG")
+                try:
+                    photo_html = f'''<img src="data:image/jpeg;base64,{photo}" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:10px">''' 
                 except: pass
 
             if xtype == "produkt":
@@ -231,6 +252,7 @@ if st.session_state.tab == "lista":
 
                 st.markdown(f"""
                 <div class="card-produkt">
+                    {photo_html}
                     <span class="type-badge badge-produkt">🏷️ Produkt gotowy</span>
                     <div class="item-name">{x.get('product','—')}</div>
                     <div class="item-date">📅 {x.get('created','')}</div>
@@ -285,6 +307,7 @@ if st.session_state.tab == "lista":
             else:
                 st.markdown(f"""
                 <div class="card-skladnik">
+                    {photo_html}
                     <span class="type-badge badge-skladnik">🧩 Składnik</span>
                     <div class="item-name">{x.get('product','—')}</div>
                     <div class="item-date">📅 {x.get('created','')}</div>
@@ -335,8 +358,24 @@ elif st.session_state.tab == "dodaj":
         placeholder="np. Koszulka bawełniana" if not is_skladnik else "np. Bawełna 100g")
 
     def parse_price(s):
-        try: return round(float(str(s).replace(",",".")), 2)
-        except: return 0.0
+        try:
+            s = str(s).strip()
+            # Usuń wszystkie spacje i znaki niewidoczne
+            s = ''.join(c for c in s if not c.isspace())
+            # Obsłuż format "1 234,56" lub "1.234,56" (spacja/kropka jako separator tysięcy)
+            # Jeśli jest i kropka i przecinek, ten ostatni to separator dziesiętny
+            if ',' in s and '.' in s:
+                # usuń separator tysięcy (ten który jest pierwszy)
+                if s.index('.') < s.index(','):
+                    s = s.replace('.', '')   # kropka = tysiące
+                    s = s.replace(',', '.')
+                else:
+                    s = s.replace(',', '')   # przecinek = tysiące
+            elif ',' in s:
+                s = s.replace(',', '.')
+            return round(float(s), 2)
+        except:
+            return 0.0
 
     col1, col2 = st.columns(2)
     with col1:
