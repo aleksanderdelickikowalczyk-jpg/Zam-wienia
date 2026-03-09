@@ -86,6 +86,9 @@ def load_items():
         sheet = get_sheet()
         ensure_headers(sheet)
         records = sheet.get_all_records()
+        for r in records:
+    for key in NUMERIC:
+        r[key] = safe_float(r.get(key, 0))
         return list(records)
     except Exception as e:
         st.error(f"❌ Błąd połączenia: {type(e).__name__}: {e}")
@@ -147,9 +150,16 @@ def img_to_b64(f) -> str:
 
 def fmt_pln(v):
     try:
-        s = str(v).strip().replace(",",".")
+        if v is None:
+            return "— zł"
+        # jeśli float/int → konwertujemy bez zmian
+        if isinstance(v, (int, float)):
+            return f"{v:.2f} zł"
+        # jeśli string → zamień przecinek na kropkę
+        s = str(v).replace(",",".").strip()
         return f"{float(s):.2f} zł"
-    except: return "— zł"
+    except:
+        return "— zł"
 
 def safe_float(v):
     try:
