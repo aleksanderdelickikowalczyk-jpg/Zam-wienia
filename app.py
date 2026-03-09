@@ -86,10 +86,6 @@ def load_items():
         sheet = get_sheet()
         ensure_headers(sheet)
         records = sheet.get_all_records()
-        for r in records:
-    for key in NUMERIC:
-        r[key] = safe_float(r.get(key, 0))
-        return list(records)
     except Exception as e:
         st.error(f"❌ Błąd połączenia: {type(e).__name__}: {e}")
         return []
