@@ -86,6 +86,11 @@ def load_items():
         sheet = get_sheet()
         ensure_headers(sheet)
         records = sheet.get_all_records()
+        # upewnij się, że wszystkie wartości numeric są floatami
+        for r in records:
+            for key in NUMERIC:
+                r[key] = safe_float(r.get(key, 0))
+        return list(records)
     except Exception as e:
         st.error(f"❌ Błąd połączenia: {type(e).__name__}: {e}")
         return []
@@ -158,19 +163,13 @@ def fmt_pln(v):
         return "— zł"
 
 def safe_float(v):
+    """Konwertuje wartość na float. Jeśli błąd lub pusta, zwraca 0.0"""
     try:
-        if v is None:
+        if v is None or v == "":
             return 0.0
-
-        # jeśli już liczba – zwróć
         if isinstance(v, (int, float)):
             return float(v)
-
-        s = str(v).strip()
-
-        # polski zapis liczby
-        s = s.replace(",", ".")
-
+        s = str(v).replace(",",".").strip()
         return float(s)
     except:
         return 0.0
