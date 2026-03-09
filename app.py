@@ -382,28 +382,32 @@ elif st.session_state.tab == "dodaj":
         value=ed.get("product","") if is_edit else "",
         placeholder="np. Koszulka bawełniana" if not is_skladnik else "np. Bawełna 100g")
 
-    def parse_price(s):
-        try:
-            if s is None:
-                return 0.0
-    
-            s = str(s).strip()
-    
-            # polski zapis liczby
-            s = s.replace(",", ".")
-    
-            return round(float(s), 2)
-        except:
+   def parse_price(s):
+    """
+    Zamienia input użytkownika na float.
+    Obsługuje: 6,92 ; 6.92 ; 692 → 6.92
+    """
+    try:
+        if isinstance(s, (int, float)):
+            return float(s)
+        s = str(s).strip()
+        if not s:
             return 0.0
+        # Zamień przecinek na kropkę
+        s = s.replace(",",".")
+        return float(s)
+    except:
+        return 0.0
 
     col1, col2 = st.columns(2)
     with col1:
         qty = st.number_input("Ilość sztuk *", min_value=1, step=1,
             value=int(ed.get("qty",1)) if is_edit else 1)
     with col2:
-        unit_price_str = st.text_input("Cena jednostkowa (zł) *",
-            value=str(ed.get("unit_price","0")).replace(".",",") if is_edit else "0",
-            placeholder="np. 6,92")
+        unit_price_str = st.text_input(
+            "Cena jednostkowa (zł) *",
+            value=str(ed.get("unit_price","0")),
+        )
         unit_price = parse_price(unit_price_str)
 
     # ── Lista składników (tylko produkt gotowy) ───────────────────────────────
