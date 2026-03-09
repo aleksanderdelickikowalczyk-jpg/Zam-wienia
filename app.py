@@ -72,7 +72,7 @@ HEADERS = ["id","type","product","qty","unit_price","total_cost","sale_price","t
 def get_sheet():
     scopes = ["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
-    client = gspread.authorize(creds)
+    client = gspread.Client(auth=creds)
     return client.open(st.secrets["spreadsheet_name"]).sheet1
 
 def ensure_headers(sheet):
