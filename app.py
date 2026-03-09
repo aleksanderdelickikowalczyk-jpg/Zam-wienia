@@ -85,7 +85,7 @@ def load_items():
     try:
         sheet = get_sheet()
         ensure_headers(sheet)
-        return sheet.get_all_records()
+        return list(sheet.get_all_records())
     except Exception as e:
         st.error(f"❌ Błąd połączenia: {e}")
         return []
@@ -97,7 +97,7 @@ def append_item(item: dict):
 
 def update_item(item: dict):
     sheet = get_sheet()
-    records = sheet.get_all_records()
+    records = list(sheet.get_all_records())
     for i, r in enumerate(records, start=2):
         if str(r.get("id")) == str(item["id"]):
             sheet.update(f"A{i}:{chr(64+len(HEADERS))}{i}", [[item.get(h,"") for h in HEADERS]])
@@ -105,7 +105,7 @@ def update_item(item: dict):
 
 def delete_item(item_id: str):
     sheet = get_sheet()
-    records = sheet.get_all_records()
+    records = list(sheet.get_all_records())
     for i, r in enumerate(records, start=2):
         if str(r.get("id")) == str(item_id):
             sheet.delete_rows(i)
