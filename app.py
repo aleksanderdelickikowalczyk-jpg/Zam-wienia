@@ -617,25 +617,29 @@ elif st.session_state.tab == "import":
         try:
             html_content = uploaded_html.read().decode("utf-8", errors="ignore")
 
-            # Wyciągnij rawData
+            # Wyciągnij rawData — szybki parser
             match = re.search(r'window\.rawData=(\{)', html_content)
             if not match:
                 st.error("❌ Nie znaleziono danych produktów w tym pliku.")
+                st.info("💡 Upewnij się że to plik z Temu — Szczegóły zamówienia lub Udostępnij zamówienie")
             else:
                 start = match.start(1)
-                # Znajdź długość poprawnego JSON
-                raw_str = None
-                for end in range(min(len(html_content)-start, 500000), 0, -100):
+                # Użyj JSONDecoder który sam wie gdzie kończy się JSON
+                try:
+                    data, _ = json.JSONDecoder().raw_decode(html_content, start)
+                    raw_str = True
+                except Exception as je:
+                    # Fallback: utnij przy błędzie
                     try:
-                        json.loads(html_content[start:start+end])
-                        raw_str = html_content[start:start+end]
-                        break
-                    except: pass
+                        err_pos = int(str(je).split("char ")[1].rstrip(")")) if "char " in str(je) else 0
+                        data = json.loads(html_content[start:start+err_pos])
+                        raw_str = True
+                    except:
+                        raw_str = None
 
                 if not raw_str:
                     st.error("❌ Nie udało się sparsować danych.")
                 else:
-                    data = json.loads(raw_str)
                     store = data.get("store", {})
 
                     # Format 1: Szczegóły zamówienia (ma ilości i ceny)
