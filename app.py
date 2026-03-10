@@ -334,7 +334,7 @@ if st.session_state.tab == "lista":
             <small>Dodaj pierwszy wpis klikając ➕</small>
         </div>""", unsafe_allow_html=True)
     else:
-        for x in reversed(filtered):
+        for idx_card, x in enumerate(reversed(filtered), start=1):
             xid   = str(x.get("id",""))
             xtype = x.get("type","produkt")
             photo = x.get("photo","")
@@ -358,7 +358,7 @@ if st.session_state.tab == "lista":
                     '<div class="card-produkt">'
                     + photo_html +
                     '<span class="type-badge badge-produkt">🏷️ Produkt gotowy</span>'
-                    f'<div class="item-name">{x.get("product","—")}</div>'
+                    f'<div class="item-name"><span style="color:#94a3b8;font-size:13px;font-weight:700;margin-right:6px">#{idx_card}</span>{x.get("product","—")}</div>'
                     f'<div class="item-date">📅 {x.get("created","")}</div>'
                     '<div class="price-grid">'
                     f'<div class="price-box"><div class="pb-label">Ilość</div><div class="pb-val pb-gray">{x.get("qty","—")} szt.</div></div>'
@@ -424,7 +424,7 @@ if st.session_state.tab == "lista":
                     '<div class="card-skladnik">'
                     + photo_html +
                     '<span class="type-badge badge-skladnik">🧩 Składnik</span>'
-                    f'<div class="item-name">{x.get("product","—")}</div>'
+                    f'<div class="item-name"><span style="color:#94a3b8;font-size:13px;font-weight:700;margin-right:6px">#{idx_card}</span>{x.get("product","—")}</div>'
                     f'<div class="item-date">📅 {x.get("created","")}</div>'
                     '<div class="price-grid-2">'
                     f'<div class="price-box"><div class="pb-label">Ilość</div><div class="pb-val pb-gray">{x.get("qty","—")} szt.</div></div>'
@@ -442,7 +442,7 @@ if st.session_state.tab == "lista":
                     '<div class="card-wyposazenie">'
                     + photo_html +
                     '<span class="type-badge badge-wyposazenie">🔧 Wyposażenie</span>'
-                    f'<div class="item-name" style="color:#0f172a">{x.get("product","—")}</div>'
+                    f'<div class="item-name" style="color:#0f172a"><span style="color:#94a3b8;font-size:13px;font-weight:700;margin-right:6px">#{idx_card}</span>{x.get("product","—")}</div>'
                     f'<div class="item-date">📅 {x.get("created","")}</div>'
                     '<div class="price-grid-2">'
                     f'<div class="price-box"><div class="pb-label">Ilość</div><div class="pb-val pb-gray">{x.get("qty","—")} szt.</div></div>'
