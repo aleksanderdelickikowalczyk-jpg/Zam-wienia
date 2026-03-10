@@ -29,6 +29,7 @@ html, body, [class*="css"] { font-family: 'Nunito', sans-serif !important; }
 
 .card-produkt { background: white; border-radius: 16px; padding: 16px; margin-bottom: 4px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); border-left: 5px solid #3b82f6; overflow:hidden; }
 .card-skladnik { background: white; border-radius: 16px; padding: 16px; margin-bottom: 4px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); border-left: 5px solid #8b5cf6; overflow:hidden; }
+.card-wyposazenie { background: white; border-radius: 16px; padding: 16px; margin-bottom: 4px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); border-left: 5px solid #0891b2; overflow:hidden; }
 
 .card-photo { width:100%; max-height:160px; object-fit:cover; border-radius:10px; margin-bottom:10px; display:block; }
 
@@ -38,6 +39,7 @@ html, body, [class*="css"] { font-family: 'Nunito', sans-serif !important; }
 .type-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 800; margin-bottom: 8px; }
 .badge-produkt { background: #dbeafe; color: #1d4ed8; }
 .badge-skladnik { background: #ede9fe; color: #6d28d9; }
+.badge-wyposazenie { background: #cffafe; color: #0e7490; }
 
 .price-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 10px 0; }
 .price-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
@@ -198,6 +200,8 @@ def generate_pdf_html(items_list):
     total_zysk      = sum(safe_num(x.get("profit",0)) for x in items_list if x.get("type")=="produkt")
     total_koszt_skl = sum(safe_num(x.get("total_cost",0)) for x in items_list if x.get("type")=="skladnik")
     n_skl           = sum(1 for x in items_list if x.get("type")=="skladnik")
+    total_koszt_wyp = sum(safe_num(x.get("total_cost",0)) for x in items_list if x.get("type")=="wyposazenie")
+    n_wyp           = sum(1 for x in items_list if x.get("type")=="wyposazenie")
 
     html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
     <style>
@@ -231,6 +235,9 @@ def generate_pdf_html(items_list):
         <tbody>{rows}</tbody>
     </table>
     <div class="summary">
+        <b style="color:#0e7490">🔧 Wyposażenie:</b><br>
+        Łączny koszt: <b style="color:#0891b2">{total_koszt_wyp:.2f} zł</b> &nbsp;·&nbsp; Pozycji: <b>{n_wyp}</b>
+        <br><br>
         <b style="color:#7c3aed">🧩 Zakupione materiały (składniki):</b><br>
         Łączny koszt zakupów: <b style="color:#7c3aed">{total_koszt_skl:.2f} zł</b> &nbsp;·&nbsp; Pozycji: <b>{n_skl}</b>
         <br><br>
@@ -254,13 +261,14 @@ items = st.session_state.wpisy if isinstance(st.session_state.wpisy, list) else 
 
 produkty      = [x for x in items if x.get("type","") == "produkt"]
 skladniki     = [x for x in items if x.get("type","") == "skladnik"]
+wyposazenie   = [x for x in items if x.get("type","") == "wyposazenie"]
 skladniki_map = {s.get("product",""): s for s in skladniki}
 
 # ── Nagłówek ──────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <div class="top-header">
     <h1>🛒 Ewidencja Sprzedaży</h1>
-    <span class="count">🏷️ {len(produkty)} prod. · 🧩 {len(skladniki)} skł.</span>
+    <span class="count">🏷️ {len(produkty)} · 🧩 {len(skladniki)} · 🔧 {len(wyposazenie)}</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -290,7 +298,7 @@ if st.session_state.tab == "lista":
     with col_s:
         search = st.text_input("Szukaj", placeholder="🔍 Szukaj...", label_visibility="collapsed")
     with col_f:
-        filtr_typ = st.selectbox("Typ", ["Wszystkie", "🏷️ Produkty gotowe", "🧩 Składniki"], label_visibility="collapsed")
+        filtr_typ = st.selectbox("Typ", ["Wszystkie", "🏷️ Produkty gotowe", "🧩 Składniki", "🔧 Wyposażenie"], label_visibility="collapsed")
     with col_r:
         if st.button("🔄", use_container_width=True, help="Odśwież"):
             st.session_state.wpisy = load_items(); st.rerun()
@@ -302,6 +310,8 @@ if st.session_state.tab == "lista":
         filtered = [x for x in filtered if x.get("type") == "produkt"]
     elif filtr_typ == "🧩 Składniki":
         filtered = [x for x in filtered if x.get("type") == "skladnik"]
+    elif filtr_typ == "🔧 Wyposażenie":
+        filtered = [x for x in filtered if x.get("type") == "wyposazenie"]
 
     # PDF / Drukuj
     if filtered:
@@ -409,7 +419,7 @@ if st.session_state.tab == "lista":
                         )
                         st.markdown('<div style="background:#faf5ff;border-radius:10px;padding:12px 14px">' + rows_html + '</div>', unsafe_allow_html=True)
 
-            else:
+            elif xtype == "skladnik":
                 st.markdown(
                     '<div class="card-skladnik">'
                     + photo_html +
@@ -421,6 +431,21 @@ if st.session_state.tab == "lista":
                     f'<div class="price-box"><div class="pb-label">Cena jedn.</div><div class="pb-val pb-purple">{fmt(x.get("unit_price"))}</div></div>'
                     '</div>'
                     '<div class="price-grid-2" style="margin-top:0">'
+                    f'<div class="price-box"><div class="pb-label">Koszt całość</div><div class="pb-val pb-orange">{fmt(x.get("total_cost"))}</div></div>'
+                    '</div>'
+                    '</div>',
+                    unsafe_allow_html=True
+                )
+
+            elif xtype == "wyposazenie":
+                st.markdown(
+                    '<div class="card-wyposazenie">'
+                    + photo_html +
+                    '<span class="type-badge badge-wyposazenie">🔧 Wyposażenie</span>'
+                    f'<div class="item-name" style="color:#0f172a">{x.get("product","—")}</div>'
+                    f'<div class="item-date">📅 {x.get("created","")}</div>'
+                    '<div class="price-grid-2">'
+                    f'<div class="price-box"><div class="pb-label">Ilość</div><div class="pb-val pb-gray">{x.get("qty","—")} szt.</div></div>'
                     f'<div class="price-box"><div class="pb-label">Koszt całość</div><div class="pb-val pb-orange">{fmt(x.get("total_cost"))}</div></div>'
                     '</div>'
                     '</div>',
@@ -450,11 +475,14 @@ elif st.session_state.tab == "dodaj":
 
     st.markdown(f"### {'✏️ Edytuj wpis' if is_edit else '➕ Nowy wpis'}")
 
-    type_options  = ["🏷️ Produkt gotowy", "🧩 Składnik"]
-    default_type  = 1 if (is_edit and ed.get("type") == "skladnik") else 0
-    selected_type = st.selectbox("Typ wpisu *", type_options, index=default_type)
-    is_skladnik   = selected_type == "🧩 Składnik"
-    xtype         = "skladnik" if is_skladnik else "produkt"
+    type_options  = ["🏷️ Produkt gotowy", "🧩 Składnik", "🔧 Wyposażenie"]
+    if is_edit and ed.get("type") == "skladnik": default_type = 1
+    elif is_edit and ed.get("type") == "wyposazenie": default_type = 2
+    else: default_type = 0
+    selected_type  = st.selectbox("Typ wpisu *", type_options, index=default_type)
+    is_skladnik    = selected_type == "🧩 Składnik"
+    is_wyposazenie = selected_type == "🔧 Wyposażenie"
+    xtype          = "skladnik" if is_skladnik else ("wyposazenie" if is_wyposazenie else "produkt")
 
     product = st.text_input("Nazwa *",
         value=ed.get("product","") if is_edit else "",
@@ -477,7 +505,7 @@ elif st.session_state.tab == "dodaj":
     ingredients_json = "[]"
     ingredients_cost = 0.0
 
-    if not is_skladnik:
+    if not is_skladnik and not is_wyposazenie:
         st.markdown("---")
         st.markdown("**🧩 Składniki produktu**")
 
@@ -536,7 +564,7 @@ elif st.session_state.tab == "dodaj":
 
     # ── Koszt całości ─────────────────────────────────────────────────────────
     st.markdown("---")
-    has_ing = not is_skladnik and bool(st.session_state.get("ing_list"))
+    has_ing = not is_skladnik and not is_wyposazenie and bool(st.session_state.get("ing_list"))
     if has_ing:
         total_cost = round(ingredients_cost * qty, 2)
         label = "📦 Koszt całości (ze składników × ilość)"
@@ -555,7 +583,7 @@ elif st.session_state.tab == "dodaj":
     sale_price = 0.0
     total_sale = 0.0
     profit     = 0.0
-    if not is_skladnik:
+    if not is_skladnik and not is_wyposazenie:
         st.markdown("---")
         # Czy to komplet z wzorkami?
         komplet_key = f"komplet_{ed.get('id','new') if is_edit else 'new'}"
@@ -653,6 +681,8 @@ elif st.session_state.tab == "dodaj":
             f'<span style="font-size:17px;font-weight:900;color:{pcol}">{profit:.2f} zł</span></div></div>',
             unsafe_allow_html=True
         )
+    elif is_wyposazenie:
+        wzorki_list = []
     else:
         wzorki_list = []
 
@@ -884,6 +914,15 @@ elif st.session_state.tab == "stats":
     c3.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#0891b2">{total_qty_skl}</div><div class="stat-label">📦 Sztuk składników</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # Sekcja wyposażenia
+    total_cost_wyp = sum(safe_num(x.get("total_cost",0)) for x in wyposazenie)
+    if wyposazenie:
+        st.markdown('<div style="font-size:13px;font-weight:800;color:#0e7490;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">🔧 Wyposażenie</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="fin-box" style="border-left:4px solid #0891b2"><div class="fin-label">🔧 Łączny koszt wyposażenia</div><div class="fin-val" style="color:#0891b2">{total_cost_wyp:.2f} zł</div></div>',
+            unsafe_allow_html=True
+        )
 
     # Sekcja składników
     if skladniki:
