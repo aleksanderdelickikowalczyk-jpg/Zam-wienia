@@ -254,18 +254,19 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-c1, c2, c3, c4 = st.columns(4)
-with c1:
+r1c1, r1c2 = st.columns(2)
+with r1c1:
     if st.button("📋 Lista", use_container_width=True, type="primary" if st.session_state.tab=="lista" else "secondary"):
         st.session_state.tab="lista"; st.session_state.editing=None; st.rerun()
-with c2:
+with r1c2:
     if st.button("➕ Dodaj", use_container_width=True, type="primary" if st.session_state.tab=="dodaj" else "secondary"):
         st.session_state.tab="dodaj"; st.session_state.editing=None; st.rerun()
-with c3:
+r2c1, r2c2 = st.columns(2)
+with r2c1:
     if st.button("📊 Podsumowanie", use_container_width=True, type="primary" if st.session_state.tab=="stats" else "secondary"):
         st.session_state.tab="stats"; st.session_state.editing=None; st.rerun()
-with c4:
-    if st.button("📥 Import", use_container_width=True, type="primary" if st.session_state.tab=="import" else "secondary"):
+with r2c2:
+    if st.button("📥 Import Temu", use_container_width=True, type="primary" if st.session_state.tab=="import" else "secondary"):
         st.session_state.tab="import"; st.session_state.editing=None; st.rerun()
 
 st.markdown("---")
