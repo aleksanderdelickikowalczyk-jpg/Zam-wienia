@@ -927,7 +927,7 @@ elif st.session_state.tab == "stats":
             st.markdown(
                 f'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;'
                 f'background:white;border-radius:10px;margin-bottom:5px;box-shadow:0 1px 6px rgba(0,0,0,0.05);border-left:3px solid #3b82f6">'
-                f'<span style="font-weight:700;font-size:12px">#{i} {s.get("product","—")[:50]}</span>'
+                f'<span style="font-weight:700;font-size:12px;color:#0f172a">#{i} {s.get("product","—")[:50]}</span>'
                 f'<span style="font-weight:900;font-size:14px;color:{color}">{p:.2f} zł</span></div>',
                 unsafe_allow_html=True
             )
