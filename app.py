@@ -65,7 +65,7 @@ html, body, [class*="css"] { font-family: 'Nunito', sans-serif !important; }
 """, unsafe_allow_html=True)
 
 # ── Google Sheets ─────────────────────────────────────────────────────────────
-HEADERS  = ["id","type","product","qty","unit_price","total_cost","sale_price","total_sale","profit","created","photo","ingredients"]
+HEADERS  = ["id","type","product","qty","unit_price","total_cost","sale_price","total_sale","profit","created","photo","ingredients","wzorki"]
 NUMERIC  = {"qty","unit_price","total_cost","sale_price","total_sale","profit"}
 
 @st.cache_resource
@@ -193,9 +193,11 @@ def generate_pdf_html(items_list):
             "</tr>"
         )
 
-    total_sprzedaz = sum(safe_num(x.get("total_sale",0)) for x in items_list if x.get("type")=="produkt")
-    total_koszt    = sum(safe_num(x.get("total_cost",0)) for x in items_list if x.get("type")=="produkt")
-    total_zysk     = sum(safe_num(x.get("profit",0)) for x in items_list if x.get("type")=="produkt")
+    total_sprzedaz  = sum(safe_num(x.get("total_sale",0)) for x in items_list if x.get("type")=="produkt")
+    total_koszt     = sum(safe_num(x.get("total_cost",0)) for x in items_list if x.get("type")=="produkt")
+    total_zysk      = sum(safe_num(x.get("profit",0)) for x in items_list if x.get("type")=="produkt")
+    total_koszt_skl = sum(safe_num(x.get("total_cost",0)) for x in items_list if x.get("type")=="skladnik")
+    n_skl           = sum(1 for x in items_list if x.get("type")=="skladnik")
 
     html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
     <style>
@@ -229,10 +231,13 @@ def generate_pdf_html(items_list):
         <tbody>{rows}</tbody>
     </table>
     <div class="summary">
-        <b>Podsumowanie produktów gotowych:</b><br>
-        Łączna sprzedaż: <b>{total_sprzedaz:.2f} zł</b> &nbsp;|&nbsp;
-        Łączny koszt: <b>{total_koszt:.2f} zł</b> &nbsp;|&nbsp;
-        Łączny zysk: <b>{total_zysk:.2f} zł</b>
+        <b style="color:#7c3aed">🧩 Zakupione materiały (składniki):</b><br>
+        Łączny koszt zakupów: <b style="color:#7c3aed">{total_koszt_skl:.2f} zł</b> &nbsp;·&nbsp; Pozycji: <b>{n_skl}</b>
+        <br><br>
+        <b style="color:#1d4ed8">🏷️ Produkty gotowe:</b><br>
+        Łączna sprzedaż: <b style="color:#1d4ed8">{total_sprzedaz:.2f} zł</b> &nbsp;|&nbsp;
+        Łączny koszt: <b style="color:#ea580c">{total_koszt:.2f} zł</b> &nbsp;|&nbsp;
+        Łączny zysk: <b style="color:{'#16a34a' if total_zysk>=0 else '#ef4444'}">{total_zysk:.2f} zł</b>
     </div>
     <br><button onclick="window.print()">🖨️ Drukuj</button>
     </body></html>"""
@@ -358,6 +363,26 @@ if st.session_state.tab == "lista":
                     '</div>',
                     unsafe_allow_html=True
                 )
+
+                # Wzorki kompletu
+                wzorki_display = []
+                try:
+                    wraw = x.get("wzorki","")
+                    if wraw: wzorki_display = json.loads(wraw)
+                except: pass
+                if wzorki_display:
+                    with st.expander(f"🎨 Wzorki kompletu ({len(wzorki_display)} szt.)", expanded=False):
+                        whtml = ""
+                        for wz in wzorki_display:
+                            whtml += (
+                                f'<div style="display:flex;justify-content:space-between;padding:6px 0;'
+                                f'border-bottom:1px solid #dcfce7;font-size:13px;font-weight:700">'
+                                f'<span>🎨 {wz.get("name","—")}</span>'
+                                f'<span style="color:#16a34a">{wz.get("price",0):.2f} zł</span></div>'
+                            )
+                        total_w = sum(wz.get("price",0) for wz in wzorki_display)
+                        whtml += f'<div style="display:flex;justify-content:space-between;margin-top:8px;font-weight:900"><span style="color:#166534">💚 Suma</span><span style="color:#16a34a">{total_w:.2f} zł</span></div>'
+                        st.markdown(f'<div style="background:#f0fdf4;border-radius:10px;padding:10px 14px">{whtml}</div>', unsafe_allow_html=True)
 
                 if ing_list:
                     with st.expander(f"🧩 Składniki ({len(ing_list)} pozycji)", expanded=False):
@@ -531,11 +556,91 @@ elif st.session_state.tab == "dodaj":
     total_sale = 0.0
     profit     = 0.0
     if not is_skladnik:
-        sp_default = str(ed.get("sale_price","0")).replace(".",",") if is_edit else "0"
-        sale_price_str = st.text_input("Cena sprzedaży za sztukę (zł) *", value=sp_default, placeholder="np. 19,99")
-        sale_price = parse_price(sale_price_str)
-        total_sale = round(qty * sale_price, 2)
-        profit     = round(total_sale - total_cost, 2)
+        st.markdown("---")
+        # Czy to komplet z wzorkami?
+        komplet_key = f"komplet_{ed.get('id','new') if is_edit else 'new'}"
+        if komplet_key not in st.session_state:
+            # Przy edycji sprawdź czy były wzorki zapisane
+            saved_wzorki = []
+            if is_edit:
+                try: saved_wzorki = json.loads(ed.get("wzorki","[]") or "[]")
+                except: pass
+            st.session_state[komplet_key] = bool(saved_wzorki)
+        
+        is_komplet = st.checkbox("🎨 To jest komplet z różnymi wzorkami/wariantami", value=st.session_state[komplet_key], key=f"cb_{komplet_key}")
+        st.session_state[komplet_key] = is_komplet
+
+        wzorki_key = f"wzorki_{ed.get('id','new') if is_edit else 'new'}"
+        if wzorki_key not in st.session_state:
+            if is_edit:
+                try: st.session_state[wzorki_key] = json.loads(ed.get("wzorki","[]") or "[]")
+                except: st.session_state[wzorki_key] = []
+            else:
+                st.session_state[wzorki_key] = []
+
+        if is_komplet:
+            st.markdown("**🎨 Wzorki / warianty**")
+            st.caption("Dodaj poszczególne wzorki i ich ceny sprzedaży — suma będzie ceną całego kompletu")
+            
+            wc1, wc2, wc3 = st.columns([3, 2, 1])
+            with wc1:
+                wzor_name = st.text_input("Nazwa wzorku", placeholder="np. Wzór morski", key="wzor_name_inp")
+            with wc2:
+                wzor_price_str = st.text_input("Cena (zł)", placeholder="np. 15,99", key="wzor_price_inp")
+            with wc3:
+                st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                if st.button("➕", use_container_width=True, key="add_wzor"):
+                    if wzor_name.strip():
+                        st.session_state[wzorki_key].append({
+                            "name": wzor_name.strip(),
+                            "price": parse_price(wzor_price_str)
+                        })
+                        st.rerun()
+
+            wzorki_list = st.session_state.get(wzorki_key, [])
+            if wzorki_list:
+                wzorki_html = ""
+                for wi, wz in enumerate(wzorki_list):
+                    wzorki_html += (
+                        f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                        f'padding:7px 12px;background:#f0fdf4;border-radius:8px;margin-bottom:5px">'
+                        f'<span style="font-weight:700;font-size:13px">🎨 {wz["name"]}</span>'
+                        f'<span style="font-weight:900;color:#16a34a">{wz["price"]:.2f} zł</span>'
+                        f'</div>'
+                    )
+                st.markdown(wzorki_html, unsafe_allow_html=True)
+                
+                # Usuń wzorki
+                wdel = st.selectbox("Usuń wzorek:", ["— wybierz —"] + [w["name"] for w in wzorki_list], key="wzor_del")
+                if wdel != "— wybierz —":
+                    if st.button("🗑️ Usuń ten wzorek", key="del_wzor_btn"):
+                        st.session_state[wzorki_key] = [w for w in wzorki_list if w["name"] != wdel]
+                        st.rerun()
+
+                total_wzorki = sum(w["price"] for w in wzorki_list)
+                sale_price = round(total_wzorki / qty, 2) if qty > 0 else 0.0
+                total_sale = round(total_wzorki * qty, 2)
+                st.markdown(
+                    f'<div style="background:#dcfce7;border-radius:10px;padding:10px 16px;margin:8px 0;'
+                    f'display:flex;justify-content:space-between;align-items:center">'
+                    f'<span style="font-size:13px;font-weight:800;color:#166534">💚 Suma wzorków / komplet</span>'
+                    f'<span style="font-size:18px;font-weight:900;color:#16a34a">{total_wzorki:.2f} zł</span></div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                total_wzorki = 0.0
+                sale_price = 0.0
+                total_sale = 0.0
+        else:
+            st.session_state[wzorki_key] = []
+            wzorki_list = []
+            sp_default = str(ed.get("sale_price","0")).replace(".",",") if is_edit else "0"
+            sale_price_str = st.text_input("Cena sprzedaży za sztukę (zł) *", value=sp_default, placeholder="np. 19,99")
+            sale_price = parse_price(sale_price_str)
+            total_sale = round(qty * sale_price, 2)
+            wzorki_list = []
+
+        profit = round(total_sale - total_cost, 2)
         pcol = "#16a34a" if profit >= 0 else "#ef4444"
         picon = "📈" if profit >= 0 else "📉"
         st.markdown(
@@ -548,6 +653,8 @@ elif st.session_state.tab == "dodaj":
             f'<span style="font-size:17px;font-weight:900;color:{pcol}">{profit:.2f} zł</span></div></div>',
             unsafe_allow_html=True
         )
+    else:
+        wzorki_list = []
 
     st.markdown("**📷 Zdjęcie**")
     uploaded = st.file_uploader("Zdjęcie", type=["jpg","jpeg","png","webp"], label_visibility="collapsed")
@@ -568,6 +675,10 @@ elif st.session_state.tab == "dodaj":
             st.session_state.editing = None
             st.session_state.tab = "lista"
             if "ing_list" in st.session_state: del st.session_state["ing_list"]
+            # Wyczyść wzorki i komplet session state
+            edit_id = ed.get("id","new") if is_edit else "new"
+            for k in [f"wzorki_{edit_id}", f"komplet_{edit_id}"]:
+                if k in st.session_state: del st.session_state[k]
             st.rerun()
 
     if save_clicked:
@@ -575,6 +686,8 @@ elif st.session_state.tab == "dodaj":
             st.error("⚠️ Podaj nazwę!")
         else:
             photo_b64 = img_to_b64(uploaded) if uploaded else existing_photo
+            wzorki_key_save = f"wzorki_{ed.get('id','new') if is_edit else 'new'}"
+            wzorki_json = json.dumps(st.session_state.get(wzorki_key_save, []), ensure_ascii=False)
             item = {
                 "id":          ed.get("id") if is_edit else str(uuid.uuid4())[:8],
                 "type":        xtype,
@@ -588,6 +701,7 @@ elif st.session_state.tab == "dodaj":
                 "created":     ed.get("created") if is_edit else date.today().strftime("%d.%m.%Y"),
                 "photo":       photo_b64,
                 "ingredients": ingredients_json if not is_skladnik else "[]",
+                "wzorki":      wzorki_json if not is_skladnik else "[]",
             }
             with st.spinner("Zapisywanie..."):
                 if is_edit: update_item(item)
