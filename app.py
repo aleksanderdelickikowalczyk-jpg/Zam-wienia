@@ -1,4 +1,5 @@
 import streamlit as st
+import re
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import date
@@ -167,16 +168,25 @@ def generate_pdf_html(items_list):
     rows = ""
     for x in items_list:
         xtype = "Produkt" if x.get("type") == "produkt" else "Składnik"
-        rows += f"""<tr>
-            <td>{x.get('product','—')}</td>
-            <td>{xtype}</td>
-            <td>{x.get('qty','—')}</td>
-            <td>{fmt(x.get('unit_price'))}</td>
-            <td>{fmt(x.get('total_cost'))}</td>
-            <td>{fmt(x.get('sale_price')) if x.get('type')=='produkt' else '—'}</td>
-            <td>{fmt(x.get('profit')) if x.get('type')=='produkt' else '—'}</td>
-            <td>{x.get('created','')}</td>
-        </tr>"""
+        photo = x.get("photo", "")
+        if is_valid_photo(photo):
+            img_tag = f'<img src="data:image/jpeg;base64,{photo.strip()}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;display:block">'
+        else:
+            img_tag = '<div style="width:60px;height:60px;background:#f1f5f9;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px">📦</div>'
+
+        rows += (
+            "<tr>"
+            f"<td style='width:70px;padding:6px 4px'>{img_tag}</td>"
+            f"<td style='font-weight:700;font-size:11px'>{x.get('product','—')}</td>"
+            f"<td><span style='background:{'#dbeafe' if x.get('type')=='produkt' else '#ede9fe'};color:{'#1d4ed8' if x.get('type')=='produkt' else '#6d28d9'};padding:2px 7px;border-radius:10px;font-size:10px;font-weight:800'>{'Produkt' if x.get('type')=='produkt' else 'Składnik'}</span></td>"
+            f"<td style='text-align:center'>{x.get('qty','—')}</td>"
+            f"<td>{fmt(x.get('unit_price'))}</td>"
+            f"<td>{fmt(x.get('total_cost'))}</td>"
+            f"<td>{fmt(x.get('sale_price')) if x.get('type')=='produkt' else '—'}</td>"
+            f"<td style='color:{'#16a34a' if safe_num(x.get('profit',0))>=0 else '#ef4444'};font-weight:800'>{fmt(x.get('profit')) if x.get('type')=='produkt' else '—'}</td>"
+            f"<td style='color:#94a3b8;font-size:10px'>{x.get('created','')}</td>"
+            "</tr>"
+        )
 
     total_sprzedaz = sum(safe_num(x.get("total_sale",0)) for x in items_list if x.get("type")=="produkt")
     total_koszt    = sum(safe_num(x.get("total_cost",0)) for x in items_list if x.get("type")=="produkt")
@@ -184,23 +194,30 @@ def generate_pdf_html(items_list):
 
     html = f"""<!DOCTYPE html><html><head><meta charset="UTF-8">
     <style>
-        body {{ font-family: Arial, sans-serif; font-size: 11px; margin: 20px; }}
-        h2 {{ color: #1d4ed8; margin-bottom: 4px; }}
+        body {{ font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #0f172a; }}
+        h2 {{ color: #1d4ed8; margin-bottom: 4px; font-size: 20px; }}
         .subtitle {{ color: #64748b; font-size: 10px; margin-bottom: 16px; }}
         table {{ width: 100%; border-collapse: collapse; }}
-        th {{ background: #1d4ed8; color: white; padding: 7px 6px; text-align: left; font-size: 10px; }}
-        td {{ padding: 6px; border-bottom: 1px solid #e2e8f0; }}
-        tr:nth-child(even) {{ background: #f8fafc; }}
-        .summary {{ margin-top: 16px; background: #f0fdf4; padding: 12px 16px; border-radius: 8px; }}
-        .summary b {{ color: #16a34a; font-size: 13px; }}
-        @media print {{ button {{ display: none; }} }}
+        th {{ background: #1d4ed8; color: white; padding: 8px 6px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }}
+        td {{ padding: 6px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }}
+        tr:hover {{ background: #f8fafc; }}
+        .summary {{ margin-top: 16px; background: #f0fdf4; padding: 14px 18px; border-radius: 8px; border: 1px solid #bbf7d0; }}
+        .summary-grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 8px; }}
+        .sum-item {{ text-align: center; }}
+        .sum-label {{ font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; }}
+        .sum-val {{ font-size: 18px; font-weight: 900; }}
+        @media print {{
+            button {{ display: none !important; }}
+            body {{ margin: 10px; }}
+            tr {{ page-break-inside: avoid; }}
+        }}
     </style>
     </head><body>
     <h2>🛒 Ewidencja Sprzedaży</h2>
-    <div class="subtitle">Wygenerowano: {date.today().strftime('%d.%m.%Y')} · Łącznie wpisów: {len(items_list)}</div>
+    <div class="subtitle">Wygenerowano: {date.today().strftime('%d.%m.%Y')} &nbsp;·&nbsp; Łącznie wpisów: {len(items_list)}</div>
     <table>
         <thead><tr>
-            <th>Nazwa</th><th>Typ</th><th>Ilość</th>
+            <th>Zdjęcie</th><th>Nazwa</th><th>Typ</th><th>Ilość</th>
             <th>Cena jedn.</th><th>Koszt całość</th>
             <th>Cena sprzed./szt.</th><th>Zysk</th><th>Data</th>
         </tr></thead>
@@ -237,7 +254,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-c1, c2, c3 = st.columns(3)
+c1, c2, c3, c4 = st.columns(4)
 with c1:
     if st.button("📋 Lista", use_container_width=True, type="primary" if st.session_state.tab=="lista" else "secondary"):
         st.session_state.tab="lista"; st.session_state.editing=None; st.rerun()
@@ -247,6 +264,9 @@ with c2:
 with c3:
     if st.button("📊 Podsumowanie", use_container_width=True, type="primary" if st.session_state.tab=="stats" else "secondary"):
         st.session_state.tab="stats"; st.session_state.editing=None; st.rerun()
+with c4:
+    if st.button("📥 Import", use_container_width=True, type="primary" if st.session_state.tab=="import" else "secondary"):
+        st.session_state.tab="import"; st.session_state.editing=None; st.rerun()
 
 st.markdown("---")
 
@@ -572,6 +592,143 @@ elif st.session_state.tab == "dodaj":
             st.session_state.tab = "lista"
             if "ing_list" in st.session_state: del st.session_state["ing_list"]
             st.rerun()
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# IMPORT TEMU
+# ════════════════════════════════════════════════════════════════════════════
+elif st.session_state.tab == "import":
+    st.markdown("### 📥 Import zamówień z Temu")
+    st.markdown("""
+    **Jak pobrać plik?**
+    1. Wejdź na Temu → Historia zamówień → otwórz zamówienie
+    2. Kliknij **"Udostępnij"** → skopiuj link i otwórz w przeglądarce
+    3. Kliknij prawym → **Zapisz jako... → Strona internetowa, kompletna**
+    4. Wgraj plik HTML poniżej (folder `_files` nie jest potrzebny — zdjęcia zostaną pobrane automatycznie)
+    """)
+
+    uploaded_html = st.file_uploader("Wgraj plik HTML z Temu", type=["html","htm"], label_visibility="visible")
+
+    import_type = st.selectbox("Importuj jako:", ["🧩 Składniki (materiały zakupione)", "🏷️ Produkty gotowe"])
+    xtype_import = "skladnik" if "Składniki" in import_type else "produkt"
+
+    if uploaded_html:
+        try:
+            html_content = uploaded_html.read().decode("utf-8", errors="ignore")
+
+            # Wyciągnij rawData
+            match = re.search(r'window\.rawData=(\{)', html_content)
+            if not match:
+                st.error("❌ Nie znaleziono danych produktów w tym pliku.")
+            else:
+                start = match.start(1)
+                # Znajdź długość poprawnego JSON
+                raw_str = None
+                for end in range(min(len(html_content)-start, 500000), 0, -100):
+                    try:
+                        json.loads(html_content[start:start+end])
+                        raw_str = html_content[start:start+end]
+                        break
+                    except: pass
+
+                if not raw_str:
+                    st.error("❌ Nie udało się sparsować danych.")
+                else:
+                    data = json.loads(raw_str)
+                    store = data.get("store", {})
+
+                    # Format 1: Szczegóły zamówienia (ma ilości i ceny)
+                    products_raw = store.get("orderInfoList", [])
+                    fmt = "details"
+
+                    # Format 2: Udostępnione zamówienie (bez ilości)
+                    if not products_raw:
+                        products_raw = store.get("shareOrderDetail",{}).get("shareOrderInfo",{}).get("orderGoodsList",[])
+                        fmt = "share"
+
+                    if not products_raw:
+                        st.error("❌ Brak produktów w pliku.")
+                    else:
+                        st.success(f"✅ Znaleziono {len(products_raw)} produktów!")
+
+                        # Podgląd
+                        preview_data = []
+                        for p in products_raw:
+                            if fmt == "details":
+                                price_str = p.get("goodsPriceWithSymbolDisplay", p.get("goodsPriceDisplay","0"))
+                                qty = p.get("goodsNumber", 1)
+                            else:
+                                price_str = p.get("goodsPriceDisplay","0")
+                                qty = 1
+                            preview_data.append({
+                                "Nazwa": p.get("goodsName","")[:55] + "...",
+                                "Ilość": qty,
+                                "Cena": price_str,
+                                "Wariant": p.get("spec",""),
+                            })
+
+                        import pandas as pd
+                        st.dataframe(preview_data, use_container_width=True)
+
+                        if st.button("💾 Importuj wszystkie do aplikacji", use_container_width=True, type="primary"):
+                            today_str = date.today().strftime("%d.%m.%Y")
+                            imported = 0
+                            progress = st.progress(0)
+                            status_txt = st.empty()
+                            for i, p in enumerate(products_raw):
+                                if fmt == "details":
+                                    price_str = p.get("goodsPriceWithSymbolDisplay", p.get("goodsPriceDisplay","0"))
+                                    qty = int(p.get("goodsNumber", 1))
+                                else:
+                                    price_str = p.get("goodsPriceDisplay","0")
+                                    qty = 1
+                                price = parse_price(price_str.replace(" zł","").replace(",","."))
+                                total = round(price * qty, 2)
+
+                                # Pobierz zdjęcie
+                                photo_b64 = ""
+                                thumb_url = p.get("thumbUrl","")
+                                if thumb_url:
+                                    try:
+                                        import urllib.request
+                                        req = urllib.request.Request(thumb_url, headers={"User-Agent":"Mozilla/5.0"})
+                                        with urllib.request.urlopen(req, timeout=8) as r:
+                                            raw_img = r.read()
+                                        img_obj = Image.open(io.BytesIO(raw_img))
+                                        img_obj.thumbnail((400,400))
+                                        if img_obj.mode != "RGB": img_obj = img_obj.convert("RGB")
+                                        buf = io.BytesIO()
+                                        img_obj.save(buf, format="JPEG", quality=70)
+                                        photo_b64 = base64.b64encode(buf.getvalue()).decode()
+                                    except: pass
+
+                                status_txt.text(f"Importuję {i+1}/{len(products_raw)}: {p.get('goodsName','')[:40]}...")
+                                item = {
+                                    "id":          str(uuid.uuid4())[:8],
+                                    "type":        xtype_import,
+                                    "product":     p.get("goodsName",""),
+                                    "qty":         qty,
+                                    "unit_price":  price,
+                                    "total_cost":  total,
+                                    "sale_price":  0.0,
+                                    "total_sale":  0.0,
+                                    "profit":      0.0,
+                                    "created":     today_str,
+                                    "photo":       photo_b64,
+                                    "ingredients": "[]",
+                                }
+                                append_item(item)
+                                imported += 1
+                                progress.progress(imported / len(products_raw))
+
+                            status_txt.empty()
+                            st.session_state.wpisy = load_items()
+                            st.success(f"✅ Zaimportowano {imported} produktów!")
+                            st.session_state.tab = "lista"
+                            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Błąd: {e}")
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # PODSUMOWANIE
