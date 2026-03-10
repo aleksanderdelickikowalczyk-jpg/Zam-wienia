@@ -128,7 +128,7 @@ def delete_all():
 
 def img_to_b64(f):
     img = Image.open(f)
-    img.thumbnail((500, 500))
+    img.thumbnail((300, 300))
     if img.mode in ("RGBA", "P", "LA"):
         bg = Image.new("RGB", img.size, (255, 255, 255))
         if img.mode == "P": img = img.convert("RGBA")
@@ -136,9 +136,14 @@ def img_to_b64(f):
         img = bg
     elif img.mode != "RGB":
         img = img.convert("RGB")
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=72)
-    return base64.b64encode(buf.getvalue()).decode()
+    # Zmniejszaj jakość aż zmieści się w limicie 40k znaków Google Sheets
+    for quality in [60, 45, 30]:
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        if len(b64) < 40000:
+            return b64
+    return ""
 
 def fmt(v):
     try: return f"{safe_num(v):.2f} zł"
@@ -690,7 +695,7 @@ elif st.session_state.tab == "import":
                                 price = parse_price(price_str.replace(" zł","").replace(",","."))
                                 total = round(price * qty, 2)
 
-                                # Pobierz zdjęcie
+                                # Pobierz zdjęcie — małe (max 30k znaków base64 = limit Sheets)
                                 photo_b64 = ""
                                 thumb_url = p.get("thumbUrl","")
                                 if thumb_url:
@@ -700,11 +705,15 @@ elif st.session_state.tab == "import":
                                         with urllib.request.urlopen(req, timeout=8) as r:
                                             raw_img = r.read()
                                         img_obj = Image.open(io.BytesIO(raw_img))
-                                        img_obj.thumbnail((400,400))
+                                        # Bardzo małe zdjęcie żeby zmieścić się w limicie 50k znaków Google Sheets
+                                        img_obj.thumbnail((120, 120))
                                         if img_obj.mode != "RGB": img_obj = img_obj.convert("RGB")
                                         buf = io.BytesIO()
-                                        img_obj.save(buf, format="JPEG", quality=70)
-                                        photo_b64 = base64.b64encode(buf.getvalue()).decode()
+                                        img_obj.save(buf, format="JPEG", quality=35)
+                                        b64 = base64.b64encode(buf.getvalue()).decode()
+                                        # Zapisz tylko jeśli mieści się w limicie
+                                        if len(b64) < 40000:
+                                            photo_b64 = b64
                                     except: pass
 
                                 status_txt.text(f"Importuję {i+1}/{len(products_raw)}: {p.get('goodsName','')[:40]}...")
