@@ -682,7 +682,7 @@ elif st.session_state.tab == "import":
 
                         if st.button("💾 Importuj wszystkie do aplikacji", use_container_width=True, type="primary"):
                             today_str = date.today().strftime("%d.%m.%Y")
-                            imported = 0
+                            all_items = []
                             progress = st.progress(0)
                             status_txt = st.empty()
                             for i, p in enumerate(products_raw):
@@ -716,8 +716,9 @@ elif st.session_state.tab == "import":
                                             photo_b64 = b64
                                     except: pass
 
-                                status_txt.text(f"Importuję {i+1}/{len(products_raw)}: {p.get('goodsName','')[:40]}...")
-                                item = {
+                                status_txt.text(f"Pobieram zdjęcie {i+1}/{len(products_raw)}...")
+                                progress.progress((i+1) / len(products_raw))
+                                all_items.append({
                                     "id":          str(uuid.uuid4())[:8],
                                     "type":        xtype_import,
                                     "product":     p.get("goodsName",""),
@@ -730,14 +731,17 @@ elif st.session_state.tab == "import":
                                     "created":     today_str,
                                     "photo":       photo_b64,
                                     "ingredients": "[]",
-                                }
-                                append_item(item)
-                                imported += 1
-                                progress.progress(imported / len(products_raw))
+                                })
 
+                            # Zapisz wszystko jednym zbiorczym zapytaniem
+                            status_txt.text(f"Zapisuję {len(all_items)} produktów do arkusza...")
+                            sheet = get_sheet()
+                            ensure_headers(sheet)
+                            rows = [row_vals(item) for item in all_items]
+                            sheet.append_rows(rows, value_input_option="USER_ENTERED")
                             status_txt.empty()
                             st.session_state.wpisy = load_items()
-                            st.success(f"✅ Zaimportowano {imported} produktów!")
+                            st.success(f"✅ Zaimportowano {len(all_items)} produktów!")
                             st.session_state.tab = "lista"
                             st.rerun()
         except Exception as e:
