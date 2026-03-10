@@ -67,7 +67,7 @@ html, body, [class*="css"] { font-family: 'Nunito', sans-serif !important; }
 """, unsafe_allow_html=True)
 
 # ── Google Sheets ─────────────────────────────────────────────────────────────
-HEADERS  = ["id","type","product","qty","unit_price","total_cost","sale_price","total_sale","profit","created","photo","ingredients","wzorki"]
+HEADERS  = ["id","type","product","qty","unit_price","total_cost","sale_price","total_sale","profit","created","photo","ingredients","wzorki","lp"]
 NUMERIC  = {"qty","unit_price","total_cost","sale_price","total_sale","profit"}
 
 @st.cache_resource
@@ -105,6 +105,14 @@ def row_vals(item):
 def append_item(item):
     sheet = get_sheet()
     ensure_headers(sheet)
+    # Przypisz kolejne lp
+    if "lp" not in item or not item.get("lp"):
+        records = list(sheet.get_all_records(numericise_ignore=["all"]))
+        max_lp = 0
+        for r in records:
+            try: max_lp = max(max_lp, int(r.get("lp",0)))
+            except: pass
+        item["lp"] = max_lp + 1
     sheet.append_row(row_vals(item), value_input_option="USER_ENTERED")
 
 def update_item(item):
@@ -305,7 +313,7 @@ if st.session_state.tab == "lista":
 
     filtered = list(items)
     if search:
-        filtered = [x for x in filtered if search.lower() in str(x.get("product","")).lower()]
+        filtered = [x for x in filtered if search.lower() in str(x.get("product","")).lower() or search.strip("#") == str(x.get("lp",""))]
     if filtr_typ == "🏷️ Produkty gotowe":
         filtered = [x for x in filtered if x.get("type") == "produkt"]
     elif filtr_typ == "🧩 Składniki":
@@ -358,7 +366,7 @@ if st.session_state.tab == "lista":
                     '<div class="card-produkt">'
                     + photo_html +
                     '<span class="type-badge badge-produkt">🏷️ Produkt gotowy</span>'
-                    f'<div class="item-name"><span style="color:#94a3b8;font-size:13px;font-weight:700;margin-right:6px">#{idx_card}</span>{x.get("product","—")}</div>'
+                    f'<div class="item-name"><span style="color:#94a3b8;font-size:13px;font-weight:700;margin-right:6px">#{x.get("lp","—")}</span>{x.get("product","—")}</div>'
                     f'<div class="item-date">📅 {x.get("created","")}</div>'
                     '<div class="price-grid">'
                     f'<div class="price-box"><div class="pb-label">Ilość</div><div class="pb-val pb-gray">{x.get("qty","—")} szt.</div></div>'
@@ -424,7 +432,7 @@ if st.session_state.tab == "lista":
                     '<div class="card-skladnik">'
                     + photo_html +
                     '<span class="type-badge badge-skladnik">🧩 Składnik</span>'
-                    f'<div class="item-name"><span style="color:#94a3b8;font-size:13px;font-weight:700;margin-right:6px">#{idx_card}</span>{x.get("product","—")}</div>'
+                    f'<div class="item-name"><span style="color:#94a3b8;font-size:13px;font-weight:700;margin-right:6px">#{x.get("lp","—")}</span>{x.get("product","—")}</div>'
                     f'<div class="item-date">📅 {x.get("created","")}</div>'
                     '<div class="price-grid-2">'
                     f'<div class="price-box"><div class="pb-label">Ilość</div><div class="pb-val pb-gray">{x.get("qty","—")} szt.</div></div>'
@@ -442,7 +450,7 @@ if st.session_state.tab == "lista":
                     '<div class="card-wyposazenie">'
                     + photo_html +
                     '<span class="type-badge badge-wyposazenie">🔧 Wyposażenie</span>'
-                    f'<div class="item-name" style="color:#0f172a"><span style="color:#94a3b8;font-size:13px;font-weight:700;margin-right:6px">#{idx_card}</span>{x.get("product","—")}</div>'
+                    f'<div class="item-name" style="color:#0f172a"><span style="color:#94a3b8;font-size:13px;font-weight:700;margin-right:6px">#{x.get("lp","—")}</span>{x.get("product","—")}</div>'
                     f'<div class="item-date">📅 {x.get("created","")}</div>'
                     '<div class="price-grid-2">'
                     f'<div class="price-box"><div class="pb-label">Ilość</div><div class="pb-val pb-gray">{x.get("qty","—")} szt.</div></div>'
@@ -881,6 +889,14 @@ elif st.session_state.tab == "import":
                             status_txt.text(f"Zapisuję {len(all_items)} produktów do arkusza...")
                             sheet = get_sheet()
                             ensure_headers(sheet)
+                            # Pobierz max lp
+                            records = list(sheet.get_all_records(numericise_ignore=["all"]))
+                            max_lp = 0
+                            for r in records:
+                                try: max_lp = max(max_lp, int(r.get("lp",0)))
+                                except: pass
+                            for i2, item in enumerate(all_items):
+                                item["lp"] = max_lp + i2 + 1
                             rows = [row_vals(item) for item in all_items]
                             sheet.append_rows(rows, value_input_option="USER_ENTERED")
                             status_txt.empty()
