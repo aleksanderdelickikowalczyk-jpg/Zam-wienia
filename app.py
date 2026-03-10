@@ -756,43 +756,70 @@ elif st.session_state.tab == "stats":
     def fsum(lst, key):
         return sum(safe_num(s.get(key, 0)) for s in lst)
 
-    total_cost_all = fsum(produkty, "total_cost")
-    total_sale_all = fsum(produkty, "total_sale")
-    total_profit   = fsum(produkty, "profit")
-    total_qty_p    = sum(int(safe_num(s.get("qty",0))) for s in produkty)
+    total_cost_prod  = fsum(produkty, "total_cost")
+    total_sale_all   = fsum(produkty, "total_sale")
+    total_profit     = fsum(produkty, "profit")
+    total_qty_p      = sum(int(safe_num(s.get("qty",0))) for s in produkty)
+    total_cost_skl   = fsum(skladniki, "total_cost")
+    total_qty_skl    = sum(int(safe_num(s.get("qty",0))) for s in skladniki)
 
+    # Górne statystyki
     c1, c2, c3 = st.columns(3)
     c1.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#2563eb">{len(produkty)}</div><div class="stat-label">🏷️ Produkty gotowe</div></div>', unsafe_allow_html=True)
     c2.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#7c3aed">{len(skladniki)}</div><div class="stat-label">🧩 Składniki</div></div>', unsafe_allow_html=True)
-    c3.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#0891b2">{total_qty_p}</div><div class="stat-label">📦 Sztuk produktów</div></div>', unsafe_allow_html=True)
+    c3.markdown(f'<div class="stat-box"><div class="stat-num" style="color:#0891b2">{total_qty_skl}</div><div class="stat-label">📦 Sztuk składników</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    pcolor = "#16a34a" if total_profit >= 0 else "#ef4444"
-    st.markdown(
-        f'<div class="fin-box"><div class="fin-label">🛒 Łączna sprzedaż</div><div class="fin-val" style="color:#2563eb">{total_sale_all:.2f} zł</div></div>'
-        f'<div class="fin-box"><div class="fin-label">📦 Łączny koszt</div><div class="fin-val" style="color:#ea580c">{total_cost_all:.2f} zł</div></div>'
-        f'<div class="fin-box"><div class="fin-label">💰 Łączny zysk</div><div class="fin-val" style="color:{pcolor}">{total_profit:.2f} zł</div></div>',
-        unsafe_allow_html=True
-    )
+    # Sekcja składników
+    if skladniki:
+        st.markdown('<div style="font-size:13px;font-weight:800;color:#6d28d9;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">🧩 Zakupione materiały</div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="fin-box" style="border-left:4px solid #8b5cf6"><div class="fin-label">💜 Łączny koszt zakupów (składniki)</div><div class="fin-val" style="color:#7c3aed">{total_cost_skl:.2f} zł</div></div>',
+            unsafe_allow_html=True
+        )
+        # Top 5 najdroższych składników
+        st.markdown("**📦 Najdroższe zakupy:**")
+        for i, s in enumerate(sorted(skladniki, key=lambda x: safe_num(x.get("total_cost",0)), reverse=True)[:5], 1):
+            tc = safe_num(s.get("total_cost",0))
+            st.markdown(
+                f'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;'
+                f'background:white;border-radius:10px;margin-bottom:5px;box-shadow:0 1px 6px rgba(0,0,0,0.05);border-left:3px solid #8b5cf6">'
+                f'<span style="font-weight:700;font-size:12px;color:#374151">#{i} {s.get("product","—")[:50]}</span>'
+                f'<span style="font-weight:900;font-size:14px;color:#7c3aed">{tc:.2f} zł</span></div>',
+                unsafe_allow_html=True
+            )
 
-    if total_sale_all > 0:
-        marza = (total_profit / total_sale_all) * 100
-        mc = "#16a34a" if marza >= 0 else "#ef4444"
-        st.markdown(f'<div class="fin-box"><div class="fin-label">📈 Marża</div><div class="fin-val" style="color:{mc}">{marza:.1f}%</div></div>', unsafe_allow_html=True)
-
+    # Sekcja produktów gotowych
     if produkty:
-        st.markdown("#### 🏆 Top produkty wg zysku")
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('<div style="font-size:13px;font-weight:800;color:#1d4ed8;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">🏷️ Produkty gotowe</div>', unsafe_allow_html=True)
+        pcolor = "#16a34a" if total_profit >= 0 else "#ef4444"
+        st.markdown(
+            f'<div class="fin-box" style="border-left:4px solid #3b82f6"><div class="fin-label">🛒 Łączna sprzedaż</div><div class="fin-val" style="color:#2563eb">{total_sale_all:.2f} zł</div></div>'
+            f'<div class="fin-box" style="border-left:4px solid #ea580c"><div class="fin-label">📦 Łączny koszt produkcji</div><div class="fin-val" style="color:#ea580c">{total_cost_prod:.2f} zł</div></div>'
+            f'<div class="fin-box" style="border-left:4px solid {pcolor}"><div class="fin-label">💰 Łączny zysk</div><div class="fin-val" style="color:{pcolor}">{total_profit:.2f} zł</div></div>',
+            unsafe_allow_html=True
+        )
+        if total_sale_all > 0:
+            marza = (total_profit / total_sale_all) * 100
+            mc = "#16a34a" if marza >= 0 else "#ef4444"
+            st.markdown(f'<div class="fin-box"><div class="fin-label">📈 Marża</div><div class="fin-val" style="color:{mc}">{marza:.1f}%</div></div>', unsafe_allow_html=True)
+
+        st.markdown("**🏆 Top produkty wg zysku:**")
         for i, s in enumerate(sorted(produkty, key=lambda x: safe_num(x.get("profit",0)), reverse=True)[:5], 1):
             p     = safe_num(s.get("profit",0))
             color = "#16a34a" if p >= 0 else "#ef4444"
             st.markdown(
-                f'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;'
-                f'background:white;border-radius:10px;margin-bottom:6px;box-shadow:0 1px 6px rgba(0,0,0,0.05)">'
-                f'<span style="font-weight:800;font-size:14px">#{i} {s.get("product","—")}</span>'
-                f'<span style="font-weight:900;font-size:15px;color:{color}">{p:.2f} zł</span></div>',
+                f'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;'
+                f'background:white;border-radius:10px;margin-bottom:5px;box-shadow:0 1px 6px rgba(0,0,0,0.05);border-left:3px solid #3b82f6">'
+                f'<span style="font-weight:700;font-size:12px">#{i} {s.get("product","—")[:50]}</span>'
+                f'<span style="font-weight:900;font-size:14px;color:{color}">{p:.2f} zł</span></div>',
                 unsafe_allow_html=True
             )
+
+    if not produkty and not skladniki:
+        st.info("Brak danych — dodaj wpisy żeby zobaczyć statystyki.")
 
     st.markdown("---")
     st.markdown("#### ⚠️ Strefa niebezpieczna")
