@@ -604,7 +604,7 @@ elif st.session_state.tab == "dodaj":
                     wzorki_html += (
                         f'<div style="display:flex;justify-content:space-between;align-items:center;'
                         f'padding:7px 12px;background:#f0fdf4;border-radius:8px;margin-bottom:5px">'
-                        f'<span style="font-weight:700;font-size:13px">🎨 {wz["name"]}</span>'
+                        f'<span style="font-weight:700;font-size:13px;color:#166534">🎨 {wz["name"]}</span>'
                         f'<span style="font-weight:900;color:#16a34a">{wz["price"]:.2f} zł</span>'
                         f'</div>'
                     )
