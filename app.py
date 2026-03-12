@@ -274,39 +274,55 @@ if st.session_state.wpisy is None:
     loaded = load_items()
     st.session_state.wpisy = loaded if isinstance(loaded, list) else []
 
-# Uzupełnij brakujące lp i zapisz do arkusza
+# Uzupełnij brakujące lp i zapisz do arkusza jednym batch update
 items = st.session_state.wpisy if isinstance(st.session_state.wpisy, list) else []
-_used_lp = set()
-for x in items:
-    v = str(x.get("lp","")).strip()
-    if v.isdigit() and int(v) > 0:
-        _used_lp.add(int(v))
 
-_needs_save = []
-_next_lp = 1
-for x in items:
-    v = str(x.get("lp","")).strip()
-    if not v.isdigit() or int(v) <= 0:
-        while _next_lp in _used_lp:
-            _next_lp += 1
-        x["lp"] = _next_lp
-        _used_lp.add(_next_lp)
-        _next_lp += 1
-        _needs_save.append(x)
+_needs_save = [x for x in items if not str(x.get("lp","")).strip().isdigit() or int(str(x.get("lp","")).strip()) <= 0]
 
-# Zapisz do arkusza wpisy którym brakowało lp
 if _needs_save:
     try:
         _sheet = get_sheet()
-        _records = list(_sheet.get_all_records(numericise_ignore=["all"]))
-        _lp_col = HEADERS.index("lp") + 1  # kolumna lp (1-based)
+        # Pobierz WSZYSTKIE wiersze surowo żeby mieć prawdziwe pozycje
+        _all_rows = _sheet.get_all_values()  # lista list, wiersz 0 = nagłówki
+        _id_col = 0  # kolumna A = id
+        _lp_col_idx = HEADERS.index("lp")  # 0-based index w HEADERS
+        # Znajdź numer kolumny lp w arkuszu (może być różny jeśli arkusz ma inne kolumny)
+        if _all_rows:
+            header_row = _all_rows[0]
+            try: _lp_col_sheet = header_row.index("lp")  # 0-based
+            except ValueError: _lp_col_sheet = _lp_col_idx
+
+        # Zbierz używane lp z arkusza (żeby nie duplikować)
+        _used_lp = set()
+        for row in _all_rows[1:]:
+            if len(row) > _lp_col_sheet:
+                v = str(row[_lp_col_sheet]).strip()
+                if v.isdigit() and int(v) > 0:
+                    _used_lp.add(int(v))
+
+        # Przypisz kolejne wolne numery
+        _next_lp = 1
+        _batch = []
         for x in _needs_save:
-            for _i, _r in enumerate(_records, start=2):
-                if str(_r.get("id","")) == str(x.get("id","")):
-                    _sheet.update_cell(_i, _lp_col, x["lp"])
+            while _next_lp in _used_lp:
+                _next_lp += 1
+            x["lp"] = _next_lp
+            _used_lp.add(_next_lp)
+            # Znajdź wiersz w arkuszu po id
+            xid = str(x.get("id",""))
+            for ri, row in enumerate(_all_rows[1:], start=2):
+                if row and str(row[0]).strip() == xid:
+                    # Kolumna lp w Sheets (1-based)
+                    col_letter = chr(65 + _lp_col_sheet)
+                    _batch.append({"range": f"{col_letter}{ri}", "values": [[_next_lp - 1]]})
                     break
-    except:
-        pass
+            _next_lp += 1
+
+        # Zapisz batch jednym requestem
+        if _batch:
+            _sheet.batch_update(_batch, value_input_option="USER_ENTERED")
+    except Exception as _e:
+        pass  # nie blokuj aplikacji jeśli zapis się nie uda
 
 produkty      = [x for x in items if x.get("type","") == "produkt"]
 skladniki     = [x for x in items if x.get("type","") == "skladnik"]
