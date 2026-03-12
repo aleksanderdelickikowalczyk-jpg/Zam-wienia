@@ -436,7 +436,7 @@ if st.session_state.tab == "lista":
                             whtml += (
                                 f'<div style="display:flex;justify-content:space-between;padding:6px 0;'
                                 f'border-bottom:1px solid #dcfce7;font-size:13px;font-weight:700">'
-                                f'<span>🎨 {wz.get("name","—")}</span>'
+                                f'<span style="color:#0f172a">🎨 {wz.get("name","—")}</span>'
                                 f'<span style="color:#16a34a">{wz.get("price",0):.2f} zł</span></div>'
                             )
                         total_w = sum(wz.get("price",0) for wz in wzorki_display)
