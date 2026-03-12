@@ -265,7 +265,23 @@ for k, v in [("tab","lista"),("editing",None),("wpisy",None)]:
 if st.session_state.wpisy is None:
     loaded = load_items()
     st.session_state.wpisy = loaded if isinstance(loaded, list) else []
+
+# Uzupełnij brakujące lp lokalnie
 items = st.session_state.wpisy if isinstance(st.session_state.wpisy, list) else []
+_used_lp = set()
+for x in items:
+    v = str(x.get("lp","")).strip()
+    if v.isdigit() and int(v) > 0:
+        _used_lp.add(int(v))
+_next_lp = 1
+for x in items:
+    v = str(x.get("lp","")).strip()
+    if not v.isdigit() or int(v) <= 0:
+        while _next_lp in _used_lp:
+            _next_lp += 1
+        x["lp"] = _next_lp
+        _used_lp.add(_next_lp)
+        _next_lp += 1
 
 produkty      = [x for x in items if x.get("type","") == "produkt"]
 skladniki     = [x for x in items if x.get("type","") == "skladnik"]
