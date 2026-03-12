@@ -82,6 +82,14 @@ def ensure_headers(sheet):
     if not first or first[0] != "id":
         sheet.clear()
         sheet.append_row(HEADERS)
+    else:
+        # Dodaj brakujące kolumny (np. wzorki, lp) bez kasowania danych
+        for i, h in enumerate(HEADERS):
+            if i >= len(first) or first[i] != h:
+                col_letter = chr(65 + i)
+                try:
+                    sheet.update(f"{col_letter}1", [[h]])
+                except: pass
 
 def load_items():
     try:
@@ -266,13 +274,15 @@ if st.session_state.wpisy is None:
     loaded = load_items()
     st.session_state.wpisy = loaded if isinstance(loaded, list) else []
 
-# Uzupełnij brakujące lp lokalnie
+# Uzupełnij brakujące lp i zapisz do arkusza
 items = st.session_state.wpisy if isinstance(st.session_state.wpisy, list) else []
 _used_lp = set()
 for x in items:
     v = str(x.get("lp","")).strip()
     if v.isdigit() and int(v) > 0:
         _used_lp.add(int(v))
+
+_needs_save = []
 _next_lp = 1
 for x in items:
     v = str(x.get("lp","")).strip()
@@ -282,6 +292,21 @@ for x in items:
         x["lp"] = _next_lp
         _used_lp.add(_next_lp)
         _next_lp += 1
+        _needs_save.append(x)
+
+# Zapisz do arkusza wpisy którym brakowało lp
+if _needs_save:
+    try:
+        _sheet = get_sheet()
+        _records = list(_sheet.get_all_records(numericise_ignore=["all"]))
+        _lp_col = HEADERS.index("lp") + 1  # kolumna lp (1-based)
+        for x in _needs_save:
+            for _i, _r in enumerate(_records, start=2):
+                if str(_r.get("id","")) == str(x.get("id","")):
+                    _sheet.update_cell(_i, _lp_col, x["lp"])
+                    break
+    except:
+        pass
 
 produkty      = [x for x in items if x.get("type","") == "produkt"]
 skladniki     = [x for x in items if x.get("type","") == "skladnik"]
