@@ -1037,13 +1037,35 @@ elif st.session_state.tab == "import":
         **Jak pobrać plik?**
         1. Zaloguj się na **vinted.pl** → kliknij swój profil → **Moje zamówienia**
         2. Kliknij prawym przyciskiem myszy → **Zapisz jako...**
-        3. Wybierz **„Strona internetowa, tylko HTML"** (sam plik `.html`, bez folderu `_files`)
-        4. Wgraj plik poniżej
-        
-        > ℹ️ Zdjęcia produktów nie są dostępne w zapisanym pliku — zostaną pominięte.
+        3. Wybierz **„Strona internetowa, kompletna"** — zapisze się plik `.html` i folder `_files` ze zdjęciami
+        4. Wgraj plik HTML poniżej, a następnie wszystkie pliki ze zdjęciami z folderu `_files`
         """)
 
-        uploaded_vinted = st.file_uploader("Wgraj plik HTML z Vinted", type=["html","htm"], key="vinted_upload")
+        uploaded_vinted = st.file_uploader("1️⃣ Wgraj plik HTML z Vinted", type=["html","htm"], key="vinted_upload")
+        uploaded_vinted_imgs = st.file_uploader(
+            "2️⃣ Wgraj zdjęcia z folderu _files (opcjonalne — zaznacz wszystkie i wgraj naraz)",
+            type=["webp","jpg","jpeg","png"],
+            accept_multiple_files=True,
+            key="vinted_imgs"
+        )
+        # Zbuduj słownik: nazwa_pliku → dane obrazu (base64)
+        vinted_img_map = {}
+        if uploaded_vinted_imgs:
+            for img_file in uploaded_vinted_imgs:
+                try:
+                    img_obj = Image.open(img_file)
+                    img_obj.thumbnail((180, 180))
+                    if img_obj.mode != "RGB":
+                        img_obj = img_obj.convert("RGB")
+                    buf = io.BytesIO()
+                    img_obj.save(buf, format="JPEG", quality=50)
+                    b64 = base64.b64encode(buf.getvalue()).decode()
+                    if len(b64) < 40000:
+                        # Klucz = sama nazwa pliku bez rozszerzenia i ścieżki
+                        fname = img_file.name.rsplit(".", 1)[0]
+                        vinted_img_map[fname] = b64
+                except: pass
+            st.caption(f"📷 Wgrano {len(vinted_img_map)} zdjęć")
 
         vinted_import_type = st.selectbox(
             "Importuj jako:",
@@ -1069,6 +1091,7 @@ elif st.session_state.tab == "import":
                 titles   = soup.find_all("div", attrs={"data-testid": "my-orders-item--title"})
                 contents = soup.find_all("div", attrs={"data-testid": "my-orders-item--content"})
                 prefixes = soup.find_all("div", attrs={"data-testid": "my-orders-item--prefix"})
+                img_tags = soup.find_all("img", attrs={"data-testid": "my-orders-item-image--img"})
 
                 if not titles:
                     st.error("❌ Nie znaleziono zamówień w tym pliku.")
@@ -1076,7 +1099,7 @@ elif st.session_state.tab == "import":
                 else:
                     # Zbuduj listę surowych zamówień
                     raw_orders = []
-                    for t, c, p in zip(titles, contents, prefixes):
+                    for idx_o, (t, c, p) in enumerate(zip(titles, contents, prefixes)):
                         name       = t.get_text(strip=True)
                         content_tx = c.get_text(strip=True)
                         status_tx  = p.get_text(strip=True)
@@ -1098,11 +1121,19 @@ elif st.session_state.tab == "import":
                         else:
                             status_norm = "inne"
 
+                        # Wyciągnij nazwę pliku zdjęcia z atrybutu src
+                        img_fname = ""
+                        if idx_o < len(img_tags):
+                            src = img_tags[idx_o].get("src", "")
+                            # src np. "./Moje zamówienia _ Vinted_files/1773754205.webp"
+                            img_fname = src.split("/")[-1].rsplit(".", 1)[0]  # -> "1773754205"
+
                         raw_orders.append({
-                            "name":   name,
-                            "price":  price,
-                            "status": status_norm,
+                            "name":      name,
+                            "price":     price,
+                            "status":    status_norm,
                             "status_raw": status_tx,
+                            "img_fname": img_fname,
                         })
 
                     # Filtrowanie
@@ -1131,6 +1162,7 @@ elif st.session_state.tab == "import":
                                     "price":      o["price"],
                                     "status":     o["status"],
                                     "status_raw": o["status_raw"],
+                                    "img_fname":  o.get("img_fname", ""),
                                 }
                                 for o in filtered_orders
                             ]
@@ -1163,11 +1195,15 @@ elif st.session_state.tab == "import":
                             "inne":         "#f8fafc",
                         }
 
+                        has_photos = bool(vinted_img_map)
+
                         # Nagłówek tabeli
+                        grid_cols = "36px 1fr 130px 70px" if has_photos else "20px 1fr 130px 70px"
+                        photo_header = '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Foto</span>' if has_photos else '<span></span>'
                         st.markdown(
-                            '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px 10px 0 0;'
-                            'padding:5px 10px;display:grid;grid-template-columns:20px 1fr 140px 70px;gap:8px;margin-top:8px">'
-                            '<span></span>'
+                            f'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px 10px 0 0;'
+                            f'padding:5px 10px;display:grid;grid-template-columns:{grid_cols};gap:8px;margin-top:8px">'
+                            f'{photo_header}'
                             '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Nazwa</span>'
                             '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Status</span>'
                             '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:right">Cena</span>'
@@ -1181,20 +1217,32 @@ elif st.session_state.tab == "import":
                             emoji  = status_emoji.get(o["status"], "ℹ️")
                             scolor = status_color.get(o["status"], "#64748b")
                             sbg    = status_bg.get(o["status"], "#f8fafc")
-                            # Skróć tekst statusu do czytelnej formy
-                            sraw = o["status_raw"]
-                            if len(sraw) > 32: sraw = sraw[:30] + "…"
+                            sraw   = o["status_raw"]
+                            if len(sraw) > 28: sraw = sraw[:26] + "…"
+                            # Miniaturka zdjęcia
+                            photo_b64 = vinted_img_map.get(o.get("img_fname", ""), "")
+                            if has_photos:
+                                if photo_b64:
+                                    photo_cell = (f'<img src="data:image/jpeg;base64,{photo_b64}" '
+                                                  f'style="width:30px;height:30px;object-fit:cover;border-radius:4px;display:block">')
+                                else:
+                                    photo_cell = '<span style="width:30px;height:30px;background:#f1f5f9;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px">📦</span>'
+                                grid_cols_row = "36px 1fr 130px 70px"
+                            else:
+                                photo_cell = '<span style="font-size:12px">' + emoji + '</span>'
+                                grid_cols_row = "20px 1fr 130px 70px"
+
                             c_row, c_del = st.columns([11, 1])
                             with c_row:
                                 st.markdown(
                                     f'<div style="background:#ffffff;border:1px solid #e2e8f0;border-top:0;{border_radius};'
-                                    f'display:grid;grid-template-columns:20px 1fr 140px 70px;align-items:center;padding:4px 10px;gap:8px">'
-                                    f'<span style="font-size:12px">{emoji}</span>'
+                                    f'display:grid;grid-template-columns:{grid_cols_row};align-items:center;padding:4px 10px;gap:8px">'
+                                    f'{photo_cell}'
                                     f'<span style="font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
                                     f'{o["name"][:50]}{"…" if len(o["name"])>50 else ""}</span>'
                                     f'<span style="font-size:10px;font-weight:700;color:{scolor};background:{sbg};'
                                     f'border-radius:5px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
-                                    f'{sraw}</span>'
+                                    f'{emoji} {sraw}</span>'
                                     f'<span style="font-size:11px;font-weight:800;color:#16a34a;text-align:right;white-space:nowrap">'
                                     f'{o["price"]:.2f} zł</span>'
                                     f'</div>',
@@ -1220,6 +1268,8 @@ elif st.session_state.tab == "import":
                                 all_items = []
                                 for o in vinted_list:
                                     price = o["price"]
+                                    # Dopasuj zdjęcie po nazwie pliku
+                                    photo_b64 = vinted_img_map.get(o.get("img_fname", ""), "")
                                     all_items.append({
                                         "id":          str(uuid.uuid4())[:8],
                                         "type":        xtype_vinted,
@@ -1231,7 +1281,7 @@ elif st.session_state.tab == "import":
                                         "total_sale":  0.0,
                                         "profit":      0.0,
                                         "created":     today_str,
-                                        "photo":       "",
+                                        "photo":       photo_b64,
                                         "ingredients": "[]",
                                         "wzorki":      "[]",
                                     })
