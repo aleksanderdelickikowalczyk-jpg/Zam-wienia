@@ -1147,29 +1147,54 @@ elif st.session_state.tab == "import":
 
                         st.success(f"✅ Znaleziono **{len(titles)}** zamówień · po filtrze: **{len(filtered_orders)}** · do importu: **{len(vinted_list)}**")
 
+                        # Kolory statusów
+                        status_color = {
+                            "zrealizowane": "#16a34a",
+                            "anulowane":    "#dc2626",
+                            "nieudane":     "#d97706",
+                            "w_toku":       "#2563eb",
+                            "inne":         "#64748b",
+                        }
+                        status_bg = {
+                            "zrealizowane": "#f0fdf4",
+                            "anulowane":    "#fef2f2",
+                            "nieudane":     "#fffbeb",
+                            "w_toku":       "#eff6ff",
+                            "inne":         "#f8fafc",
+                        }
+
                         # Nagłówek tabeli
                         st.markdown(
                             '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px 10px 0 0;'
-                            'padding:5px 10px;display:grid;grid-template-columns:24px 1fr 80px 34px;gap:6px;margin-top:8px">'
+                            'padding:5px 10px;display:grid;grid-template-columns:20px 1fr 140px 70px;gap:8px;margin-top:8px">'
                             '<span></span>'
                             '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Nazwa</span>'
+                            '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Status</span>'
                             '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:right">Cena</span>'
-                            '<span></span></div>',
+                            '</div>',
                             unsafe_allow_html=True
                         )
 
                         for vi, o in enumerate(vinted_list):
                             is_last = vi == len(vinted_list) - 1
                             border_radius = "border-radius:0 0 10px 10px" if is_last else ""
-                            emoji = status_emoji.get(o["status"], "ℹ️")
+                            emoji  = status_emoji.get(o["status"], "ℹ️")
+                            scolor = status_color.get(o["status"], "#64748b")
+                            sbg    = status_bg.get(o["status"], "#f8fafc")
+                            # Skróć tekst statusu do czytelnej formy
+                            sraw = o["status_raw"]
+                            if len(sraw) > 32: sraw = sraw[:30] + "…"
                             c_row, c_del = st.columns([11, 1])
                             with c_row:
                                 st.markdown(
                                     f'<div style="background:#ffffff;border:1px solid #e2e8f0;border-top:0;{border_radius};'
-                                    f'display:grid;grid-template-columns:20px 1fr 80px;align-items:center;padding:4px 10px;gap:6px">'
+                                    f'display:grid;grid-template-columns:20px 1fr 140px 70px;align-items:center;padding:4px 10px;gap:8px">'
                                     f'<span style="font-size:12px">{emoji}</span>'
                                     f'<span style="font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
-                                    f'{o["name"][:58]}{"…" if len(o["name"])>58 else ""}</span>'
+                                    f'{o["name"][:50]}{"…" if len(o["name"])>50 else ""}</span>'
+                                    f'<span style="font-size:10px;font-weight:700;color:{scolor};background:{sbg};'
+                                    f'border-radius:5px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+                                    f'{sraw}</span>'
                                     f'<span style="font-size:11px;font-weight:800;color:#16a34a;text-align:right;white-space:nowrap">'
                                     f'{o["price"]:.2f} zł</span>'
                                     f'</div>',
