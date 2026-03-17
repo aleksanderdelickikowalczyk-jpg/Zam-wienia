@@ -187,9 +187,8 @@ def sort_alpha(lst):
     return sorted(lst, key=lambda x: str(x.get("product","")).lower())
 
 # ── PDF generowanie ───────────────────────────────────────────────────────────
-def generate_pdf_html(items_list):
-    # ZMIANA: sortuj alfabetycznie przed generowaniem PDF
-    items_list = sort_alpha(items_list)
+def generate_pdf_html(items_list, sort_label="🔤 Nazwa A → Z"):
+    # Lista przekazana już w wybranej kolejności sortowania
 
     rows = ""
     for x in items_list:
@@ -244,7 +243,7 @@ def generate_pdf_html(items_list):
     </style>
     </head><body>
     <h2>🛒 Ewidencja Sprzedaży</h2>
-    <div class="subtitle">Wygenerowano: {date.today().strftime('%d.%m.%Y')} &nbsp;·&nbsp; Łącznie wpisów: {len(items_list)} &nbsp;·&nbsp; Sortowanie: alfabetyczne A→Z</div>
+    <div class="subtitle">Wygenerowano: {date.today().strftime('%d.%m.%Y')} &nbsp;·&nbsp; Łącznie wpisów: {len(items_list)} &nbsp;·&nbsp; Sortowanie: {sort_label}</div>
     <table>
         <thead><tr>
             <th>Zdjęcie</th><th>Nazwa</th><th>Typ</th><th>Ilość</th>
@@ -350,7 +349,7 @@ with r2c2:
 st.markdown("---")
 
 # ════════════════════════════════════════════════════════════════════════════
-# LISTA  — sortowanie alfabetyczne A→Z
+# LISTA
 # ════════════════════════════════════════════════════════════════════════════
 if st.session_state.tab == "lista":
 
@@ -363,6 +362,25 @@ if st.session_state.tab == "lista":
         if st.button("🔄", use_container_width=True, help="Odśwież"):
             st.session_state.wpisy = load_items(); st.rerun()
 
+    # ── Sortowanie ────────────────────────────────────────────────────────────
+    SORT_OPTIONS = {
+        "🔤 Nazwa A → Z":          ("product",    False, "str"),
+        "🔤 Nazwa Z → A":          ("product",    True,  "str"),
+        "🔢 Nr. porządkowy ↑":     ("lp",         False, "num"),
+        "🔢 Nr. porządkowy ↓":     ("lp",         True,  "num"),
+        "💰 Koszt rosnąco":        ("total_cost",  False, "num"),
+        "💰 Koszt malejąco":       ("total_cost",  True,  "num"),
+        "🏷️ Cena sprzedaży ↑":    ("total_sale",  False, "num"),
+        "🏷️ Cena sprzedaży ↓":    ("total_sale",  True,  "num"),
+    }
+    sort_choice = st.selectbox(
+        "Sortuj według",
+        list(SORT_OPTIONS.keys()),
+        label_visibility="collapsed",
+        key="sort_choice"
+    )
+    sort_key, sort_rev, sort_type = SORT_OPTIONS[sort_choice]
+
     filtered = list(items)
     if search:
         filtered = [x for x in filtered if search.lower() in str(x.get("product","")).lower() or search.strip("#") == str(x.get("lp",""))]
@@ -373,13 +391,16 @@ if st.session_state.tab == "lista":
     elif filtr_typ == "🔧 Wyposażenie":
         filtered = [x for x in filtered if x.get("type") == "wyposazenie"]
 
-    # ZMIANA: sortuj alfabetycznie A→Z po nazwie
-    filtered = sort_alpha(filtered)
+    # Zastosuj wybrane sortowanie
+    if sort_type == "str":
+        filtered = sorted(filtered, key=lambda x: str(x.get(sort_key,"")).lower(), reverse=sort_rev)
+    else:
+        filtered = sorted(filtered, key=lambda x: safe_num(x.get(sort_key, 0)), reverse=sort_rev)
 
     # PDF / Drukuj
     if filtered:
         if st.button("🖨️ Drukuj / Pobierz PDF", use_container_width=True):
-            pdf_html = generate_pdf_html(filtered)
+            pdf_html = generate_pdf_html(filtered, sort_label=sort_choice)
             b64_html = base64.b64encode(pdf_html.encode("utf-8")).decode()
             st.markdown(
                 f'<a href="data:text/html;base64,{b64_html}" download="ewidencja.html" '
@@ -397,9 +418,9 @@ if st.session_state.tab == "lista":
             <small>Dodaj pierwszy wpis klikając ➕</small>
         </div>""", unsafe_allow_html=True)
     else:
-        # Znacznik sortowania
+        # Znacznik aktywnego sortowania
         st.markdown(
-            '<div style="text-align:right;font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">🔤 Sortowanie: A → Z</div>',
+            f'<div style="text-align:right;font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px">{sort_choice}</div>',
             unsafe_allow_html=True
         )
 
