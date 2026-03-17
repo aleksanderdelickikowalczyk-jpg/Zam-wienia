@@ -1295,30 +1295,50 @@ elif st.session_state.tab == "import":
                                     st.caption(f"Łączna cena zestawu: {budget:.2f} zł · Rozdysponowano: {used:.2f} zł · Pozostało: {remaining:.2f} zł")
 
                                     # Formularz dodawania składowej
-                                    fa, fb, fc = st.columns([4, 2, 1])
+                                    fa, fb = st.columns([4, 2])
                                     with fa:
                                         item_name = st.text_input("Nazwa przedmiotu", key=f"sn_{vi}", placeholder="np. Kolczyki z bursztynem")
                                     with fb:
                                         item_price_str = st.text_input("Cena (zł)", key=f"sp_{vi}", placeholder=f"maks {remaining:.2f}")
-                                    with fc:
+                                    fg, fh = st.columns([3, 1])
+                                    with fg:
+                                        item_photo_file = st.file_uploader("📷 Zdjęcie (opcjonalne)", type=["jpg","jpeg","png","webp"], key=f"sph_{vi}", label_visibility="collapsed")
+                                    with fh:
                                         st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-                                        if st.button("➕", key=f"sadd_{vi}", use_container_width=True):
+                                        if st.button("➕ Dodaj", key=f"sadd_{vi}", use_container_width=True):
                                             iname  = item_name.strip()
                                             iprice = parse_price(item_price_str)
                                             if iname and iprice > 0:
+                                                # Konwertuj zdjęcie jeśli wgrane
+                                                iphoto = ""
+                                                if item_photo_file:
+                                                    try:
+                                                        img_obj = Image.open(item_photo_file)
+                                                        img_obj.thumbnail((300, 300))
+                                                        if img_obj.mode != "RGB": img_obj = img_obj.convert("RGB")
+                                                        buf = io.BytesIO()
+                                                        img_obj.save(buf, format="JPEG", quality=50)
+                                                        b64 = base64.b64encode(buf.getvalue()).decode()
+                                                        if len(b64) < 40000: iphoto = b64
+                                                    except: pass
                                                 if vi not in st.session_state[split_key]:
                                                     st.session_state[split_key][vi] = []
-                                                st.session_state[split_key][vi].append({"name": iname, "price": iprice})
+                                                st.session_state[split_key][vi].append({"name": iname, "price": iprice, "photo": iphoto})
                                                 st.rerun()
 
                                     # Lista dodanych składowych
                                     for si, sp in enumerate(split_items):
-                                        sc1, sc2, sc3 = st.columns([5, 2, 1])
+                                        sc1, sc2, sc3, sc4 = st.columns([2, 4, 2, 1])
                                         with sc1:
-                                            st.markdown(f'<div style="font-size:11px;font-weight:700;color:#1e293b;padding:4px 0">📦 {sp["name"]}</div>', unsafe_allow_html=True)
+                                            if sp.get("photo"):
+                                                st.markdown(f'<img src="data:image/jpeg;base64,{sp["photo"]}" style="width:36px;height:36px;object-fit:cover;border-radius:6px;display:block;margin-top:2px">', unsafe_allow_html=True)
+                                            else:
+                                                st.markdown('<div style="width:36px;height:36px;background:#f1f5f9;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-top:2px">📦</div>', unsafe_allow_html=True)
                                         with sc2:
-                                            st.markdown(f'<div style="font-size:11px;font-weight:800;color:#2563eb;padding:4px 0;text-align:right">{sp["price"]:.2f} zł</div>', unsafe_allow_html=True)
+                                            st.markdown(f'<div style="font-size:11px;font-weight:700;color:#1e293b;padding:6px 0">{sp["name"]}</div>', unsafe_allow_html=True)
                                         with sc3:
+                                            st.markdown(f'<div style="font-size:11px;font-weight:800;color:#2563eb;padding:6px 0;text-align:right">{sp["price"]:.2f} zł</div>', unsafe_allow_html=True)
+                                        with sc4:
                                             if st.button("✕", key=f"sdel_{vi}_{si}", use_container_width=True):
                                                 st.session_state[split_key][vi].pop(si)
                                                 st.rerun()
@@ -1354,8 +1374,9 @@ elif st.session_state.tab == "import":
                                     photo_b64 = vinted_img_map.get(o.get("img_fname", ""), "")
                                     split_parts = split_map.get(vi, [])
                                     if split_parts:
-                                        # Rozbity zestaw — dodaj każdą składową osobno
+                                        # Rozbity zestaw — dodaj każdą składową osobno z jej własnym zdjęciem
                                         for sp in split_parts:
+                                            sp_photo = sp.get("photo") or photo_b64
                                             all_items.append({
                                                 "id":          str(uuid.uuid4())[:8],
                                                 "type":        xtype_vinted,
@@ -1367,7 +1388,7 @@ elif st.session_state.tab == "import":
                                                 "total_sale":  0.0,
                                                 "profit":      0.0,
                                                 "created":     today_str,
-                                                "photo":       photo_b64,
+                                                "photo":       sp_photo,
                                                 "ingredients": "[]",
                                                 "wzorki":      "[]",
                                             })
