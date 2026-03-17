@@ -1109,18 +1109,28 @@ elif st.session_state.tab == "import":
                         price = parse_price(price_match.group(1)) if price_match else 0.0
 
                         # Normalizuj status
-                        status_lower = status_tx.lower()
-                        if "zrealizowane" in status_lower or "zrealizowano" in status_lower:
+                        # prefix: "Status zamówienia: Zakończone / W toku / Nieudane / Wymaga działania"
+                        # content: szczegoly np. "Anulowano. Zwrot zakonczyl sie pomyslnie."
+                        prefix_lower  = status_tx.lower()
+                        content_lower = content_tx.lower()
+
+                        if "nieudane" in prefix_lower:
+                            if "anulowano" in content_lower or "zwrot" in content_lower:
+                                status_norm = "anulowane"
+                            else:
+                                status_norm = "nieudane"
+                        elif "zakonczone" in prefix_lower or "zakończone" in prefix_lower:
                             status_norm = "zrealizowane"
-                        elif "anulowano" in status_lower or "zwrot zakończył się pomyślnie" in status_lower:
-                            status_norm = "anulowane"
-                        elif "nie wysłano" in status_lower or "pieniądze zostały zwrócone" in status_lower:
-                            status_norm = "nieudane"
-                        elif "w toku" in status_lower:
+                        elif "w toku" in prefix_lower:
                             status_norm = "w_toku"
+                        elif "wymaga" in prefix_lower:
+                            status_norm = "wymaga_dzialania"
                         else:
                             status_norm = "inne"
 
+                        # Czytelny opis z content (pomijamy cene na poczatku)
+                        import re as _re2
+                        status_display = _re2.sub(r'^[\d,\.\xa0\s]+zł', '', content_tx).strip()
                         # Wyciągnij nazwę pliku zdjęcia z atrybutu src
                         img_fname = ""
                         if idx_o < len(img_tags):
@@ -1132,7 +1142,7 @@ elif st.session_state.tab == "import":
                             "name":      name,
                             "price":     price,
                             "status":    status_norm,
-                            "status_raw": status_tx,
+                            "status_raw": status_display,
                             "img_fname": img_fname,
                         })
 
@@ -1140,7 +1150,7 @@ elif st.session_state.tab == "import":
                     if vinted_filter == "Tylko zrealizowane":
                         filtered_orders = [o for o in raw_orders if o["status"] == "zrealizowane"]
                     elif vinted_filter == "Tylko w toku":
-                        filtered_orders = [o for o in raw_orders if o["status"] == "w_toku"]
+                        filtered_orders = [o for o in raw_orders if o["status"] in ("w_toku", "wymaga_dzialania")]
                     elif vinted_filter == "Bez anulowanych i nieudanych":
                         filtered_orders = [o for o in raw_orders if o["status"] not in ("anulowane", "nieudane")]
                     elif vinted_filter == "Bez anulowanych":
@@ -1170,29 +1180,32 @@ elif st.session_state.tab == "import":
                         vinted_list = st.session_state[vinted_key]
 
                         status_emoji = {
-                            "zrealizowane": "✅",
-                            "anulowane":    "❌",
-                            "nieudane":     "⚠️",
-                            "w_toku":       "🔄",
-                            "inne":         "ℹ️",
+                            "zrealizowane":      "✅",
+                            "anulowane":         "❌",
+                            "nieudane":          "⚠️",
+                            "w_toku":            "🔄",
+                            "wymaga_dzialania":  "📦",
+                            "inne":              "ℹ️",
                         }
 
                         st.success(f"✅ Znaleziono **{len(titles)}** zamówień · po filtrze: **{len(filtered_orders)}** · do importu: **{len(vinted_list)}**")
 
                         # Kolory statusów
                         status_color = {
-                            "zrealizowane": "#16a34a",
-                            "anulowane":    "#dc2626",
-                            "nieudane":     "#d97706",
-                            "w_toku":       "#2563eb",
-                            "inne":         "#64748b",
+                            "zrealizowane":     "#16a34a",
+                            "anulowane":        "#dc2626",
+                            "nieudane":         "#d97706",
+                            "w_toku":           "#2563eb",
+                            "wymaga_dzialania": "#7c3aed",
+                            "inne":             "#64748b",
                         }
                         status_bg = {
-                            "zrealizowane": "#f0fdf4",
-                            "anulowane":    "#fef2f2",
-                            "nieudane":     "#fffbeb",
-                            "w_toku":       "#eff6ff",
-                            "inne":         "#f8fafc",
+                            "zrealizowane":     "#f0fdf4",
+                            "anulowane":        "#fef2f2",
+                            "nieudane":         "#fffbeb",
+                            "w_toku":           "#eff6ff",
+                            "wymaga_dzialania": "#f5f3ff",
+                            "inne":             "#f8fafc",
                         }
 
                         has_photos = bool(vinted_img_map)
