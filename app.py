@@ -63,6 +63,10 @@ html, body, [class*="css"] { font-family: 'Nunito', sans-serif !important; }
 .fin-box { background: white; border-radius: 14px; padding: 18px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); margin-bottom: 10px; }
 .fin-label { font-size: 13px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
 .fin-val { font-size: 30px; font-weight: 900; }
+
+/* Małe czerwone przyciski ✕ w podglądzie importu — widoczne na jasnym tle */
+button[data-testid="baseButton-secondary"][aria-label="Usuń"] p,
+button[kind="secondary"] p { font-size: 11px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -916,26 +920,36 @@ elif st.session_state.tab == "import":
                             temu_list = st.session_state[temu_key]
 
                             st.success(f"✅ Znaleziono {len(products_raw)} produktów · do importu: **{len(temu_list)}**")
-                            st.caption("Kliknij ✕ przy pozycji żeby ją usunąć przed importem")
+
+                            # Nagłówek tabeli
+                            st.markdown(
+                                '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px 10px 0 0;'
+                                'padding:5px 10px 5px 10px;display:grid;grid-template-columns:1fr 100px 34px;gap:6px;margin-top:8px">'
+                                '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Nazwa</span>'
+                                '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:right">Ilość / cena</span>'
+                                '<span></span></div>',
+                                unsafe_allow_html=True
+                            )
 
                             for ti, item_p in enumerate(temu_list):
-                                c_name, c_info, c_del = st.columns([5, 2, 1])
-                                with c_name:
-                                    spec = f" · {item_p['spec']}" if item_p.get("spec") else ""
+                                is_last = ti == len(temu_list) - 1
+                                spec = f" · {item_p['spec']}" if item_p.get("spec") else ""
+                                border_radius = "border-radius:0 0 10px 10px" if is_last else ""
+                                c_row, c_del = st.columns([11, 1])
+                                with c_row:
                                     st.markdown(
-                                        f'<div style="padding:6px 0;font-size:13px;font-weight:700;color:#0f172a">'
-                                        f'{item_p["name"][:55]}{"…" if len(item_p["name"])>55 else ""}'
-                                        f'<span style="color:#94a3b8;font-weight:600">{spec}</span></div>',
-                                        unsafe_allow_html=True
-                                    )
-                                with c_info:
-                                    st.markdown(
-                                        f'<div style="padding:6px 0;font-size:12px;color:#64748b;font-weight:700">'
-                                        f'{item_p["qty"]} szt. · {item_p["price"]:.2f} zł</div>',
+                                        f'<div style="background:#ffffff;border:1px solid #e2e8f0;border-top:0;{border_radius};'
+                                        f'display:grid;grid-template-columns:1fr 100px;align-items:center;padding:4px 10px;gap:6px">'
+                                        f'<span style="font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+                                        f'{item_p["name"][:58]}{"…" if len(item_p["name"])>58 else ""}'
+                                        f'<span style="color:#94a3b8;font-size:10px"> {spec}</span></span>'
+                                        f'<span style="font-size:11px;font-weight:800;color:#2563eb;text-align:right;white-space:nowrap">'
+                                        f'{item_p["qty"]}× {item_p["price"]:.2f} zł</span>'
+                                        f'</div>',
                                         unsafe_allow_html=True
                                     )
                                 with c_del:
-                                    if st.button("✕", key=f"temu_del_{ti}", use_container_width=True, help="Usuń z listy importu"):
+                                    if st.button("✕", key=f"temu_del_{ti}", use_container_width=True, help="Usuń"):
                                         st.session_state[temu_key].pop(ti)
                                         st.rerun()
 
@@ -1132,25 +1146,37 @@ elif st.session_state.tab == "import":
                         }
 
                         st.success(f"✅ Znaleziono **{len(titles)}** zamówień · po filtrze: **{len(filtered_orders)}** · do importu: **{len(vinted_list)}**")
-                        st.caption("Kliknij ✕ przy pozycji żeby ją usunąć przed importem")
+
+                        # Nagłówek tabeli
+                        st.markdown(
+                            '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px 10px 0 0;'
+                            'padding:5px 10px;display:grid;grid-template-columns:24px 1fr 80px 34px;gap:6px;margin-top:8px">'
+                            '<span></span>'
+                            '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px">Nazwa</span>'
+                            '<span style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;text-align:right">Cena</span>'
+                            '<span></span></div>',
+                            unsafe_allow_html=True
+                        )
 
                         for vi, o in enumerate(vinted_list):
-                            c_name, c_info, c_del = st.columns([5, 2, 1])
-                            with c_name:
-                                emoji = status_emoji.get(o["status"], "ℹ️")
+                            is_last = vi == len(vinted_list) - 1
+                            border_radius = "border-radius:0 0 10px 10px" if is_last else ""
+                            emoji = status_emoji.get(o["status"], "ℹ️")
+                            c_row, c_del = st.columns([11, 1])
+                            with c_row:
                                 st.markdown(
-                                    f'<div style="padding:6px 0;font-size:13px;font-weight:700;color:#0f172a">'
-                                    f'{emoji} {o["name"][:55]}{"…" if len(o["name"])>55 else ""}</div>',
-                                    unsafe_allow_html=True
-                                )
-                            with c_info:
-                                st.markdown(
-                                    f'<div style="padding:6px 0;font-size:12px;color:#64748b;font-weight:700">'
-                                    f'{o["price"]:.2f} zł</div>',
+                                    f'<div style="background:#ffffff;border:1px solid #e2e8f0;border-top:0;{border_radius};'
+                                    f'display:grid;grid-template-columns:20px 1fr 80px;align-items:center;padding:4px 10px;gap:6px">'
+                                    f'<span style="font-size:12px">{emoji}</span>'
+                                    f'<span style="font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+                                    f'{o["name"][:58]}{"…" if len(o["name"])>58 else ""}</span>'
+                                    f'<span style="font-size:11px;font-weight:800;color:#16a34a;text-align:right;white-space:nowrap">'
+                                    f'{o["price"]:.2f} zł</span>'
+                                    f'</div>',
                                     unsafe_allow_html=True
                                 )
                             with c_del:
-                                if st.button("✕", key=f"vinted_del_{vi}", use_container_width=True, help="Usuń z listy importu"):
+                                if st.button("✕", key=f"vinted_del_{vi}", use_container_width=True, help="Usuń"):
                                     st.session_state[vinted_key].pop(vi)
                                     st.rerun()
 
