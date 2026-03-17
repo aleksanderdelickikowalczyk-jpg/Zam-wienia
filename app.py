@@ -1007,7 +1007,7 @@ elif st.session_state.tab == "import":
         # Opcja filtrowania po statusie
         vinted_filter = st.selectbox(
             "Filtruj zamówienia:",
-            ["Wszystkie", "Tylko zrealizowane", "Tylko w toku", "Bez anulowanych"],
+            ["Wszystkie", "Tylko zrealizowane", "Tylko w toku", "Bez anulowanych i nieudanych", "Bez anulowanych", "Bez nieudanych"],
             key="vinted_filter"
         )
 
@@ -1041,8 +1041,10 @@ elif st.session_state.tab == "import":
                         status_lower = status_tx.lower()
                         if "zrealizowane" in status_lower or "zrealizowano" in status_lower:
                             status_norm = "zrealizowane"
-                        elif "anulowano" in status_lower or "zwrot" in status_lower or "nie wysłano" in status_lower:
+                        elif "anulowano" in status_lower or "zwrot zakończył się pomyślnie" in status_lower:
                             status_norm = "anulowane"
+                        elif "nie wysłano" in status_lower or "pieniądze zostały zwrócone" in status_lower:
+                            status_norm = "nieudane"
                         elif "w toku" in status_lower:
                             status_norm = "w_toku"
                         else:
@@ -1060,8 +1062,12 @@ elif st.session_state.tab == "import":
                         filtered_orders = [o for o in raw_orders if o["status"] == "zrealizowane"]
                     elif vinted_filter == "Tylko w toku":
                         filtered_orders = [o for o in raw_orders if o["status"] == "w_toku"]
+                    elif vinted_filter == "Bez anulowanych i nieudanych":
+                        filtered_orders = [o for o in raw_orders if o["status"] not in ("anulowane", "nieudane")]
                     elif vinted_filter == "Bez anulowanych":
                         filtered_orders = [o for o in raw_orders if o["status"] != "anulowane"]
+                    elif vinted_filter == "Bez nieudanych":
+                        filtered_orders = [o for o in raw_orders if o["status"] != "nieudane"]
                     else:
                         filtered_orders = raw_orders
 
@@ -1076,6 +1082,7 @@ elif st.session_state.tab == "import":
                         status_emoji = {
                             "zrealizowane": "✅",
                             "anulowane":    "❌",
+                            "nieudane":     "⚠️",
                             "w_toku":       "🔄",
                             "inne":         "ℹ️",
                         }
