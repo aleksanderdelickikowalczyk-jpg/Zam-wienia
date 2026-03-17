@@ -892,32 +892,11 @@ elif st.session_state.tab == "import":
                         if not products_raw:
                             st.error("❌ Brak produktów w pliku.")
                         else:
-                            st.success(f"✅ Znaleziono {len(products_raw)} produktów!")
-
-                            preview_data = []
-                            for p in products_raw:
-                                if fmt_temu == "details":
-                                    price_str = p.get("goodsPriceWithSymbolDisplay", p.get("goodsPriceDisplay","0"))
-                                    qty_p = p.get("goodsNumber", 1)
-                                else:
-                                    price_str = p.get("goodsPriceDisplay","0")
-                                    qty_p = 1
-                                preview_data.append({
-                                    "Nazwa": p.get("goodsName","")[:55] + "...",
-                                    "Ilość": qty_p,
-                                    "Cena": price_str,
-                                    "Wariant": p.get("spec",""),
-                                })
-
-                            import pandas as pd
-                            st.dataframe(preview_data, use_container_width=True)
-
-                            if st.button("💾 Importuj wszystkie do aplikacji", use_container_width=True, type="primary"):
-                                today_str = date.today().strftime("%d.%m.%Y")
-                                all_items = []
-                                progress = st.progress(0)
-                                status_txt = st.empty()
-                                for i, p in enumerate(products_raw):
+                            # Inicjuj listę pozycji do importu w session_state
+                            temu_key = f"temu_preview_{hash(uploaded_html.name)}"
+                            if temu_key not in st.session_state:
+                                preview_list = []
+                                for p in products_raw:
                                     if fmt_temu == "details":
                                         price_str = p.get("goodsPriceWithSymbolDisplay", p.get("goodsPriceDisplay","0"))
                                         qty_p = int(p.get("goodsNumber", 1))
@@ -925,60 +904,115 @@ elif st.session_state.tab == "import":
                                         price_str = p.get("goodsPriceDisplay","0")
                                         qty_p = 1
                                     price = parse_price(price_str.replace(" zł","").replace(",","."))
-                                    total = round(price * qty_p, 2)
-
-                                    photo_b64 = ""
-                                    thumb_url = p.get("thumbUrl","")
-                                    if thumb_url:
-                                        try:
-                                            import urllib.request
-                                            req = urllib.request.Request(thumb_url, headers={"User-Agent":"Mozilla/5.0"})
-                                            with urllib.request.urlopen(req, timeout=8) as r:
-                                                raw_img = r.read()
-                                            img_obj = Image.open(io.BytesIO(raw_img))
-                                            img_obj.thumbnail((120, 120))
-                                            if img_obj.mode != "RGB": img_obj = img_obj.convert("RGB")
-                                            buf = io.BytesIO()
-                                            img_obj.save(buf, format="JPEG", quality=35)
-                                            b64 = base64.b64encode(buf.getvalue()).decode()
-                                            if len(b64) < 40000:
-                                                photo_b64 = b64
-                                        except: pass
-
-                                    status_txt.text(f"Pobieram zdjęcie {i+1}/{len(products_raw)}...")
-                                    progress.progress((i+1) / len(products_raw))
-                                    all_items.append({
-                                        "id":          str(uuid.uuid4())[:8],
-                                        "type":        xtype_import,
-                                        "product":     p.get("goodsName",""),
-                                        "qty":         qty_p,
-                                        "unit_price":  price,
-                                        "total_cost":  total,
-                                        "sale_price":  0.0,
-                                        "total_sale":  0.0,
-                                        "profit":      0.0,
-                                        "created":     today_str,
-                                        "photo":       photo_b64,
-                                        "ingredients": "[]",
+                                    preview_list.append({
+                                        "name":      p.get("goodsName",""),
+                                        "qty":       qty_p,
+                                        "price":     price,
+                                        "thumb_url": p.get("thumbUrl",""),
+                                        "spec":      p.get("spec",""),
                                     })
+                                st.session_state[temu_key] = preview_list
 
-                                status_txt.text(f"Zapisuję {len(all_items)} produktów do arkusza...")
-                                sheet = get_sheet()
-                                ensure_headers(sheet)
-                                records = list(sheet.get_all_records(numericise_ignore=["all"]))
-                                max_lp = 0
-                                for r in records:
-                                    try: max_lp = max(max_lp, int(r.get("lp",0)))
-                                    except: pass
-                                for i2, item in enumerate(all_items):
-                                    item["lp"] = max_lp + i2 + 1
-                                rows_data = [row_vals(item) for item in all_items]
-                                sheet.append_rows(rows_data, value_input_option="USER_ENTERED")
-                                status_txt.empty()
-                                st.session_state.wpisy = load_items()
-                                st.success(f"✅ Zaimportowano {len(all_items)} produktów!")
-                                st.session_state.tab = "lista"
-                                st.rerun()
+                            temu_list = st.session_state[temu_key]
+
+                            st.success(f"✅ Znaleziono {len(products_raw)} produktów · do importu: **{len(temu_list)}**")
+                            st.caption("Kliknij ✕ przy pozycji żeby ją usunąć przed importem")
+
+                            for ti, item_p in enumerate(temu_list):
+                                c_name, c_info, c_del = st.columns([5, 2, 1])
+                                with c_name:
+                                    spec = f" · {item_p['spec']}" if item_p.get("spec") else ""
+                                    st.markdown(
+                                        f'<div style="padding:6px 0;font-size:13px;font-weight:700;color:#0f172a">'
+                                        f'{item_p["name"][:55]}{"…" if len(item_p["name"])>55 else ""}'
+                                        f'<span style="color:#94a3b8;font-weight:600">{spec}</span></div>',
+                                        unsafe_allow_html=True
+                                    )
+                                with c_info:
+                                    st.markdown(
+                                        f'<div style="padding:6px 0;font-size:12px;color:#64748b;font-weight:700">'
+                                        f'{item_p["qty"]} szt. · {item_p["price"]:.2f} zł</div>',
+                                        unsafe_allow_html=True
+                                    )
+                                with c_del:
+                                    if st.button("✕", key=f"temu_del_{ti}", use_container_width=True, help="Usuń z listy importu"):
+                                        st.session_state[temu_key].pop(ti)
+                                        st.rerun()
+
+                            if temu_list:
+                                total_temu = sum(i["price"] * i["qty"] for i in temu_list)
+                                st.markdown(
+                                    f'<div style="background:#eff6ff;border-radius:10px;padding:10px 16px;margin:8px 0;'
+                                    f'display:flex;justify-content:space-between;align-items:center">'
+                                    f'<span style="font-size:13px;font-weight:800;color:#1d4ed8">🛒 Łączna wartość importu ({len(temu_list)} pozycji)</span>'
+                                    f'<span style="font-size:18px;font-weight:900;color:#2563eb">{total_temu:.2f} zł</span></div>',
+                                    unsafe_allow_html=True
+                                )
+
+                                if st.button("💾 Importuj do aplikacji", use_container_width=True, type="primary"):
+                                    today_str = date.today().strftime("%d.%m.%Y")
+                                    all_items = []
+                                    progress = st.progress(0)
+                                    status_txt = st.empty()
+                                    for i, item_p in enumerate(temu_list):
+                                        photo_b64 = ""
+                                        thumb_url = item_p.get("thumb_url","")
+                                        if thumb_url:
+                                            try:
+                                                import urllib.request
+                                                req = urllib.request.Request(thumb_url, headers={"User-Agent":"Mozilla/5.0"})
+                                                with urllib.request.urlopen(req, timeout=8) as r:
+                                                    raw_img = r.read()
+                                                img_obj = Image.open(io.BytesIO(raw_img))
+                                                img_obj.thumbnail((120, 120))
+                                                if img_obj.mode != "RGB": img_obj = img_obj.convert("RGB")
+                                                buf = io.BytesIO()
+                                                img_obj.save(buf, format="JPEG", quality=35)
+                                                b64 = base64.b64encode(buf.getvalue()).decode()
+                                                if len(b64) < 40000:
+                                                    photo_b64 = b64
+                                            except: pass
+
+                                        status_txt.text(f"Pobieram zdjęcie {i+1}/{len(temu_list)}...")
+                                        progress.progress((i+1) / len(temu_list))
+                                        qty_p = item_p["qty"]
+                                        price = item_p["price"]
+                                        all_items.append({
+                                            "id":          str(uuid.uuid4())[:8],
+                                            "type":        xtype_import,
+                                            "product":     item_p["name"],
+                                            "qty":         qty_p,
+                                            "unit_price":  price,
+                                            "total_cost":  round(price * qty_p, 2),
+                                            "sale_price":  0.0,
+                                            "total_sale":  0.0,
+                                            "profit":      0.0,
+                                            "created":     today_str,
+                                            "photo":       photo_b64,
+                                            "ingredients": "[]",
+                                        })
+
+                                    status_txt.text(f"Zapisuję {len(all_items)} produktów do arkusza...")
+                                    sheet = get_sheet()
+                                    ensure_headers(sheet)
+                                    records = list(sheet.get_all_records(numericise_ignore=["all"]))
+                                    max_lp = 0
+                                    for r in records:
+                                        try: max_lp = max(max_lp, int(r.get("lp",0)))
+                                        except: pass
+                                    for i2, item in enumerate(all_items):
+                                        item["lp"] = max_lp + i2 + 1
+                                    rows_data = [row_vals(item) for item in all_items]
+                                    sheet.append_rows(rows_data, value_input_option="USER_ENTERED")
+                                    status_txt.empty()
+                                    if temu_key in st.session_state:
+                                        del st.session_state[temu_key]
+                                    st.session_state.wpisy = load_items()
+                                    st.success(f"✅ Zaimportowano {len(all_items)} produktów!")
+                                    st.session_state.tab = "lista"
+                                    st.rerun()
+                            else:
+                                st.warning("⚠️ Lista jest pusta — wszystkie pozycje zostały usunięte.")
             except Exception as e:
                 st.error(f"❌ Błąd: {e}")
 
@@ -1074,10 +1108,20 @@ elif st.session_state.tab == "import":
                     if not filtered_orders:
                         st.warning("⚠️ Brak zamówień po zastosowaniu filtra.")
                     else:
-                        st.success(f"✅ Znaleziono **{len(titles)}** zamówień łącznie, po filtrze: **{len(filtered_orders)}**")
+                        # Inicjuj listę w session_state (klucz zależy od pliku + filtra)
+                        vinted_key = f"vinted_preview_{hash(uploaded_vinted.name)}_{vinted_filter}"
+                        if vinted_key not in st.session_state:
+                            st.session_state[vinted_key] = [
+                                {
+                                    "name":       o["name"],
+                                    "price":      o["price"],
+                                    "status":     o["status"],
+                                    "status_raw": o["status_raw"],
+                                }
+                                for o in filtered_orders
+                            ]
 
-                        # Podgląd tabeli
-                        import pandas as pd
+                        vinted_list = st.session_state[vinted_key]
 
                         status_emoji = {
                             "zrealizowane": "✅",
@@ -1086,63 +1130,82 @@ elif st.session_state.tab == "import":
                             "w_toku":       "🔄",
                             "inne":         "ℹ️",
                         }
-                        preview = [
-                            {
-                                "Nazwa":  o["name"][:60] + ("…" if len(o["name"]) > 60 else ""),
-                                "Cena":   f"{o['price']:.2f} zł",
-                                "Status": status_emoji.get(o["status"],"") + " " + o["status_raw"][:40],
-                            }
-                            for o in filtered_orders
-                        ]
-                        st.dataframe(preview, use_container_width=True)
 
-                        total_val = sum(o["price"] for o in filtered_orders)
-                        st.markdown(
-                            f'<div style="background:#f0fdf4;border-radius:10px;padding:10px 16px;margin:8px 0;'
-                            f'display:flex;justify-content:space-between;align-items:center">'
-                            f'<span style="font-size:13px;font-weight:800;color:#166534">💚 Łączna wartość importu</span>'
-                            f'<span style="font-size:18px;font-weight:900;color:#16a34a">{total_val:.2f} zł</span></div>',
-                            unsafe_allow_html=True
-                        )
+                        st.success(f"✅ Znaleziono **{len(titles)}** zamówień · po filtrze: **{len(filtered_orders)}** · do importu: **{len(vinted_list)}**")
+                        st.caption("Kliknij ✕ przy pozycji żeby ją usunąć przed importem")
 
-                        if st.button("💾 Importuj do aplikacji", use_container_width=True, type="primary", key="vinted_import_btn"):
-                            today_str = date.today().strftime("%d.%m.%Y")
-                            all_items = []
-                            for o in filtered_orders:
-                                price = o["price"]
-                                all_items.append({
-                                    "id":          str(uuid.uuid4())[:8],
-                                    "type":        xtype_vinted,
-                                    "product":     o["name"],
-                                    "qty":         1,
-                                    "unit_price":  price,
-                                    "total_cost":  price,
-                                    "sale_price":  0.0,
-                                    "total_sale":  0.0,
-                                    "profit":      0.0,
-                                    "created":     today_str,
-                                    "photo":       "",
-                                    "ingredients": "[]",
-                                    "wzorki":      "[]",
-                                })
+                        for vi, o in enumerate(vinted_list):
+                            c_name, c_info, c_del = st.columns([5, 2, 1])
+                            with c_name:
+                                emoji = status_emoji.get(o["status"], "ℹ️")
+                                st.markdown(
+                                    f'<div style="padding:6px 0;font-size:13px;font-weight:700;color:#0f172a">'
+                                    f'{emoji} {o["name"][:55]}{"…" if len(o["name"])>55 else ""}</div>',
+                                    unsafe_allow_html=True
+                                )
+                            with c_info:
+                                st.markdown(
+                                    f'<div style="padding:6px 0;font-size:12px;color:#64748b;font-weight:700">'
+                                    f'{o["price"]:.2f} zł</div>',
+                                    unsafe_allow_html=True
+                                )
+                            with c_del:
+                                if st.button("✕", key=f"vinted_del_{vi}", use_container_width=True, help="Usuń z listy importu"):
+                                    st.session_state[vinted_key].pop(vi)
+                                    st.rerun()
 
-                            with st.spinner(f"Zapisuję {len(all_items)} pozycji..."):
-                                sheet = get_sheet()
-                                ensure_headers(sheet)
-                                records = list(sheet.get_all_records(numericise_ignore=["all"]))
-                                max_lp = 0
-                                for r in records:
-                                    try: max_lp = max(max_lp, int(r.get("lp",0)))
-                                    except: pass
-                                for i2, item in enumerate(all_items):
-                                    item["lp"] = max_lp + i2 + 1
-                                rows_data = [row_vals(item) for item in all_items]
-                                sheet.append_rows(rows_data, value_input_option="USER_ENTERED")
+                        if vinted_list:
+                            total_val = sum(o["price"] for o in vinted_list)
+                            st.markdown(
+                                f'<div style="background:#f0fdf4;border-radius:10px;padding:10px 16px;margin:8px 0;'
+                                f'display:flex;justify-content:space-between;align-items:center">'
+                                f'<span style="font-size:13px;font-weight:800;color:#166534">💚 Łączna wartość importu ({len(vinted_list)} pozycji)</span>'
+                                f'<span style="font-size:18px;font-weight:900;color:#16a34a">{total_val:.2f} zł</span></div>',
+                                unsafe_allow_html=True
+                            )
 
-                            st.session_state.wpisy = load_items()
-                            st.success(f"✅ Zaimportowano {len(all_items)} pozycji z Vinted!")
-                            st.session_state.tab = "lista"
-                            st.rerun()
+                            if st.button("💾 Importuj do aplikacji", use_container_width=True, type="primary", key="vinted_import_btn"):
+                                today_str = date.today().strftime("%d.%m.%Y")
+                                all_items = []
+                                for o in vinted_list:
+                                    price = o["price"]
+                                    all_items.append({
+                                        "id":          str(uuid.uuid4())[:8],
+                                        "type":        xtype_vinted,
+                                        "product":     o["name"],
+                                        "qty":         1,
+                                        "unit_price":  price,
+                                        "total_cost":  price,
+                                        "sale_price":  0.0,
+                                        "total_sale":  0.0,
+                                        "profit":      0.0,
+                                        "created":     today_str,
+                                        "photo":       "",
+                                        "ingredients": "[]",
+                                        "wzorki":      "[]",
+                                    })
+
+                                with st.spinner(f"Zapisuję {len(all_items)} pozycji..."):
+                                    sheet = get_sheet()
+                                    ensure_headers(sheet)
+                                    records = list(sheet.get_all_records(numericise_ignore=["all"]))
+                                    max_lp = 0
+                                    for r in records:
+                                        try: max_lp = max(max_lp, int(r.get("lp",0)))
+                                        except: pass
+                                    for i2, item in enumerate(all_items):
+                                        item["lp"] = max_lp + i2 + 1
+                                    rows_data = [row_vals(item) for item in all_items]
+                                    sheet.append_rows(rows_data, value_input_option="USER_ENTERED")
+
+                                if vinted_key in st.session_state:
+                                    del st.session_state[vinted_key]
+                                st.session_state.wpisy = load_items()
+                                st.success(f"✅ Zaimportowano {len(all_items)} pozycji z Vinted!")
+                                st.session_state.tab = "lista"
+                                st.rerun()
+                        else:
+                            st.warning("⚠️ Lista jest pusta — wszystkie pozycje zostały usunięte.")
 
             except ImportError:
                 st.error("❌ Brakuje biblioteki `beautifulsoup4`. Dodaj `beautifulsoup4` do `requirements.txt`.")
