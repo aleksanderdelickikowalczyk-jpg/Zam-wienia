@@ -1211,6 +1211,11 @@ elif st.session_state.tab == "import":
                             unsafe_allow_html=True
                         )
 
+                        # Klucz dla session_state rozbitych zestawów
+                        split_key = f"vinted_split_{vinted_key}"
+                        if split_key not in st.session_state:
+                            st.session_state[split_key] = {}  # {vi: [{"name":..,"price":..}, ...]}
+
                         for vi, o in enumerate(vinted_list):
                             is_last = vi == len(vinted_list) - 1
                             border_radius = "border-radius:0 0 10px 10px" if is_last else ""
@@ -1219,7 +1224,6 @@ elif st.session_state.tab == "import":
                             sbg    = status_bg.get(o["status"], "#f8fafc")
                             sraw   = o["status_raw"]
                             if len(sraw) > 28: sraw = sraw[:26] + "…"
-                            # Miniaturka zdjęcia
                             photo_b64 = vinted_img_map.get(o.get("img_fname", ""), "")
                             if has_photos:
                                 if photo_b64:
@@ -1232,14 +1236,25 @@ elif st.session_state.tab == "import":
                                 photo_cell = '<span style="font-size:12px">' + emoji + '</span>'
                                 grid_cols_row = "20px 1fr 130px 70px"
 
+                            # Czy to zestaw? (wykryj "Zestaw X przedmiotów" lub podobne)
+                            import re as _re
+                            zestaw_match = _re.search(r'zestaw\s+(\d+)\s+przedmiot', o["name"], _re.IGNORECASE)
+                            is_zestaw = bool(zestaw_match)
+                            split_items = st.session_state[split_key].get(vi, [])
+                            split_active = bool(split_items)
+
                             c_row, c_del = st.columns([11, 1])
                             with c_row:
+                                # Znacznik "rozbity" jeśli zestaw ma składowe
+                                split_badge = ''
+                                if split_active:
+                                    split_badge = f'<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:800">✂️ {len(split_items)} szt.</span>'
                                 st.markdown(
                                     f'<div style="background:#ffffff;border:1px solid #e2e8f0;border-top:0;{border_radius};'
                                     f'display:grid;grid-template-columns:{grid_cols_row};align-items:center;padding:4px 10px;gap:8px">'
                                     f'{photo_cell}'
                                     f'<span style="font-size:11px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
-                                    f'{o["name"][:50]}{"…" if len(o["name"])>50 else ""}</span>'
+                                    f'{o["name"][:45]}{"…" if len(o["name"])>45 else ""}{split_badge}</span>'
                                     f'<span style="font-size:10px;font-weight:700;color:{scolor};background:{sbg};'
                                     f'border-radius:5px;padding:2px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
                                     f'{emoji} {sraw}</span>'
@@ -1251,14 +1266,69 @@ elif st.session_state.tab == "import":
                             with c_del:
                                 if st.button("✕", key=f"vinted_del_{vi}", use_container_width=True, help="Usuń"):
                                     st.session_state[vinted_key].pop(vi)
+                                    if vi in st.session_state[split_key]:
+                                        del st.session_state[split_key][vi]
                                     st.rerun()
 
+                            # Expander rozbijania zestawu — dla każdego wiersza który wygląda jak zestaw LUB ma już składowe
+                            if is_zestaw or split_active:
+                                n_suggested = int(zestaw_match.group(1)) if zestaw_match else 2
+                                budget = o["price"]
+                                used   = sum(i["price"] for i in split_items)
+                                remaining = round(budget - used, 2)
+
+                                exp_label = f"✂️ Rozbiij zestaw na składowe · {len(split_items)} dodanych · pozostało {remaining:.2f} zł" if split_items else f"✂️ Rozbiij na składowe ({n_suggested} przedmiotów · {budget:.2f} zł łącznie)"
+                                with st.expander(exp_label, expanded=split_active and remaining > 0):
+                                    st.caption(f"Łączna cena zestawu: {budget:.2f} zł · Rozdysponowano: {used:.2f} zł · Pozostało: {remaining:.2f} zł")
+
+                                    # Formularz dodawania składowej
+                                    fa, fb, fc = st.columns([4, 2, 1])
+                                    with fa:
+                                        item_name = st.text_input("Nazwa przedmiotu", key=f"sn_{vi}", placeholder="np. Kolczyki z bursztynem")
+                                    with fb:
+                                        item_price_str = st.text_input("Cena (zł)", key=f"sp_{vi}", placeholder=f"maks {remaining:.2f}")
+                                    with fc:
+                                        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                                        if st.button("➕", key=f"sadd_{vi}", use_container_width=True):
+                                            iname  = item_name.strip()
+                                            iprice = parse_price(item_price_str)
+                                            if iname and iprice > 0:
+                                                if vi not in st.session_state[split_key]:
+                                                    st.session_state[split_key][vi] = []
+                                                st.session_state[split_key][vi].append({"name": iname, "price": iprice})
+                                                st.rerun()
+
+                                    # Lista dodanych składowych
+                                    for si, sp in enumerate(split_items):
+                                        sc1, sc2, sc3 = st.columns([5, 2, 1])
+                                        with sc1:
+                                            st.markdown(f'<div style="font-size:11px;font-weight:700;color:#1e293b;padding:4px 0">📦 {sp["name"]}</div>', unsafe_allow_html=True)
+                                        with sc2:
+                                            st.markdown(f'<div style="font-size:11px;font-weight:800;color:#2563eb;padding:4px 0;text-align:right">{sp["price"]:.2f} zł</div>', unsafe_allow_html=True)
+                                        with sc3:
+                                            if st.button("✕", key=f"sdel_{vi}_{si}", use_container_width=True):
+                                                st.session_state[split_key][vi].pop(si)
+                                                st.rerun()
+
+                                    if remaining < -0.01:
+                                        st.warning(f"⚠️ Suma składowych ({used:.2f} zł) przekracza cenę zestawu ({budget:.2f} zł) o {abs(remaining):.2f} zł!")
+                                    elif remaining == 0 or abs(remaining) < 0.01:
+                                        st.success("✅ Suma składowych równa cenie zestawu!")
+                                    elif split_items:
+                                        st.info(f"💡 Możesz jeszcze dodać składowe na łączną kwotę {remaining:.2f} zł")
+
                         if vinted_list:
+                            split_map = st.session_state.get(split_key, {})
+                            # Policz ile pozycji faktycznie wejdzie do importu
+                            total_import_count = sum(
+                                len(split_map[vi]) if vi in split_map and split_map[vi] else 1
+                                for vi in range(len(vinted_list))
+                            )
                             total_val = sum(o["price"] for o in vinted_list)
                             st.markdown(
                                 f'<div style="background:#f0fdf4;border-radius:10px;padding:10px 16px;margin:8px 0;'
                                 f'display:flex;justify-content:space-between;align-items:center">'
-                                f'<span style="font-size:13px;font-weight:800;color:#166534">💚 Łączna wartość importu ({len(vinted_list)} pozycji)</span>'
+                                f'<span style="font-size:13px;font-weight:800;color:#166534">💚 Łączna wartość importu ({total_import_count} pozycji)</span>'
                                 f'<span style="font-size:18px;font-weight:900;color:#16a34a">{total_val:.2f} zł</span></div>',
                                 unsafe_allow_html=True
                             )
@@ -1266,25 +1336,44 @@ elif st.session_state.tab == "import":
                             if st.button("💾 Importuj do aplikacji", use_container_width=True, type="primary", key="vinted_import_btn"):
                                 today_str = date.today().strftime("%d.%m.%Y")
                                 all_items = []
-                                for o in vinted_list:
+                                for vi, o in enumerate(vinted_list):
                                     price = o["price"]
-                                    # Dopasuj zdjęcie po nazwie pliku
                                     photo_b64 = vinted_img_map.get(o.get("img_fname", ""), "")
-                                    all_items.append({
-                                        "id":          str(uuid.uuid4())[:8],
-                                        "type":        xtype_vinted,
-                                        "product":     o["name"],
-                                        "qty":         1,
-                                        "unit_price":  price,
-                                        "total_cost":  price,
-                                        "sale_price":  0.0,
-                                        "total_sale":  0.0,
-                                        "profit":      0.0,
-                                        "created":     today_str,
-                                        "photo":       photo_b64,
-                                        "ingredients": "[]",
-                                        "wzorki":      "[]",
-                                    })
+                                    split_parts = split_map.get(vi, [])
+                                    if split_parts:
+                                        # Rozbity zestaw — dodaj każdą składową osobno
+                                        for sp in split_parts:
+                                            all_items.append({
+                                                "id":          str(uuid.uuid4())[:8],
+                                                "type":        xtype_vinted,
+                                                "product":     sp["name"],
+                                                "qty":         1,
+                                                "unit_price":  sp["price"],
+                                                "total_cost":  sp["price"],
+                                                "sale_price":  0.0,
+                                                "total_sale":  0.0,
+                                                "profit":      0.0,
+                                                "created":     today_str,
+                                                "photo":       photo_b64,
+                                                "ingredients": "[]",
+                                                "wzorki":      "[]",
+                                            })
+                                    else:
+                                        all_items.append({
+                                            "id":          str(uuid.uuid4())[:8],
+                                            "type":        xtype_vinted,
+                                            "product":     o["name"],
+                                            "qty":         1,
+                                            "unit_price":  price,
+                                            "total_cost":  price,
+                                            "sale_price":  0.0,
+                                            "total_sale":  0.0,
+                                            "profit":      0.0,
+                                            "created":     today_str,
+                                            "photo":       photo_b64,
+                                            "ingredients": "[]",
+                                            "wzorki":      "[]",
+                                        })
 
                                 with st.spinner(f"Zapisuję {len(all_items)} pozycji..."):
                                     sheet = get_sheet()
